@@ -15,7 +15,7 @@ interface TranslatedVideo {
 
 const translator = createTranslator();
 
-const VIDEO_TAG_MAP: Record<string, Record<Language, string>> = {
+const VIDEO_TAG_MAP: Record<string, Partial<Record<Language, string>>> = {
   treino: { pt: 'treino', en: 'workout', es: 'entrenamiento' },
   exercicio: { pt: 'exercício', en: 'exercise', es: 'ejercicio' },
   academia: { pt: 'academia', en: 'gym', es: 'gimnasio' },
@@ -56,7 +56,7 @@ function translateTag(tag: string, target: Language): string {
 export function translateVideoMetadata(
   video: VideoMetadata
 ): TranslatedVideo {
-  const targets: Language[] = ['en', 'es'];
+  const targets: Language[] = ['en', 'es', 'fr'];
   const translations = {
     pt: { ...video },
   } as Record<Language, VideoMetadata>;

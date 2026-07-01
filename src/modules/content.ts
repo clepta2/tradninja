@@ -23,7 +23,7 @@ const CONTENT_RULES: Array<{
   {
     pattern: /(\d+)\s*(?:séries?|sets?|series?)/gi,
     replacement: (_, num, target) => {
-      const map: Record<Language, string> = {
+      const map: Partial<Record<Language, string>> = {
         pt: `${num} séries`,
         en: `${num} sets`,
         es: `${num} series`,
@@ -34,7 +34,7 @@ const CONTENT_RULES: Array<{
   {
     pattern: /(\d+)\s*(?:reps?|repetições?|repeticiones?)/gi,
     replacement: (_, num, target) => {
-      const map: Record<Language, string> = {
+      const map: Partial<Record<Language, string>> = {
         pt: `${num} reps`,
         en: `${num} reps`,
         es: `${num} reps`,
@@ -45,7 +45,7 @@ const CONTENT_RULES: Array<{
   {
     pattern: /(\d+)\s*(?:minutos?|min\.?)/gi,
     replacement: (_, num, target) => {
-      const map: Record<Language, string> = {
+      const map: Partial<Record<Language, string>> = {
         pt: `${num} minutos`,
         en: `${num} min`,
         es: `${num} minutos`,
@@ -56,7 +56,7 @@ const CONTENT_RULES: Array<{
   {
     pattern: /(\d+)\s*(?:segundos?|seg\.?|s)/gi,
     replacement: (_, num, target) => {
-      const map: Record<Language, string> = {
+      const map: Partial<Record<Language, string>> = {
         pt: `${num} segundos`,
         en: `${num} seconds`,
         es: `${num} segundos`,

@@ -87,9 +87,10 @@ export function generateTranslations(
     pt: [],
     en: [],
     es: [],
+    fr: [],
   };
 
-  const targetLangs: Language[] = ['en', 'es'];
+  const targetLangs: Language[] = ['en', 'es', 'fr'];
 
   for (const item of strings) {
     result.pt.push(item.original);

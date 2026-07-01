@@ -1,9 +1,10 @@
-export type Language = 'pt' | 'en' | 'es';
+export type Language = 'pt' | 'en' | 'es' | 'fr';
 
 export interface DictionaryEntry {
   pt: string;
   en: string;
   es: string;
+  fr: string;
 }
 
 export interface TranslateOptions {

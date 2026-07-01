@@ -17,7 +17,7 @@ const ARTICLES_PT_EN: ArticleRule[] = [
   { pt: /\bumas\b/gi, en: 'some', es: 'unas' },
 ];
 
-const POSSESSIVES: Record<string, Record<Language, string>> = {
+const POSSESSIVES: Record<string, Partial<Record<Language, string>>> = {
   meu: { pt: 'meu', en: 'my', es: 'mi' },
   minha: { pt: 'minha', en: 'my', es: 'mi' },
   teu: { pt: 'teu', en: 'your', es: 'tu' },
@@ -30,7 +30,7 @@ const POSSESSIVES: Record<string, Record<Language, string>> = {
   delas: { pt: 'delas', en: 'their', es: 'su' },
 };
 
-const NEGATION: Record<string, Record<Language, string>> = {
+const NEGATION: Record<string, Partial<Record<Language, string>>> = {
   nenhum: { pt: 'nenhum', en: 'no', es: 'ningún' },
   nenhuma: { pt: 'nenhuma', en: 'no', es: 'ninguna' },
   ningueem: { pt: 'ninguém', en: 'nobody', es: 'nadie' },
@@ -55,6 +55,7 @@ const NUMBER_FORMATS: Record<Language, {
   pt: { decimal: ',', thousands: '.', currency: 'R$ ' },
   en: { decimal: '.', thousands: ',', currency: '$' },
   es: { decimal: ',', thousands: '.', currency: '$' },
+  fr: { decimal: ',', thousands: ' ', currency: '€' },
 };
 
 export const GRAMMAR_RULES: GrammarRule[] = [
@@ -144,15 +145,15 @@ export function formatCurrency(
 
 export function getGenderMap(): Record<string, Record<Language, string>> {
   return {
-    masculino: { pt: 'masculino', en: 'male', es: 'masculino' },
-    feminino: { pt: 'feminino', en: 'female', es: 'femenino' },
-    forte: { pt: 'forte', en: 'strong', es: 'fuerte' },
-    rapido: { pt: 'rápido', en: 'fast', es: 'rápido' },
-    alta: { pt: 'alta', en: 'high', es: 'alta' },
-    baixa: { pt: 'baixa', en: 'low', es: 'baja' },
-    bom: { pt: 'bom', en: 'good', es: 'bueno' },
-    boa: { pt: 'boa', en: 'good', es: 'buena' },
-    otimo: { pt: 'ótimo', en: 'great', es: 'genial' },
-    otima: { pt: 'ótima', en: 'great', es: 'genial' },
+    masculino: { pt: 'masculino', en: 'male', es: 'masculino', fr: 'masculin' },
+    feminino: { pt: 'feminino', en: 'female', es: 'femenino', fr: 'féminin' },
+    forte: { pt: 'forte', en: 'strong', es: 'fuerte', fr: 'fort' },
+    rapido: { pt: 'rápido', en: 'fast', es: 'rápido', fr: 'rapide' },
+    alta: { pt: 'alta', en: 'high', es: 'alta', fr: 'haute' },
+    baixa: { pt: 'baixa', en: 'low', es: 'baja', fr: 'basse' },
+    bom: { pt: 'bom', en: 'good', es: 'bueno', fr: 'bon' },
+    boa: { pt: 'boa', en: 'good', es: 'buena', fr: 'bonne' },
+    otimo: { pt: 'ótimo', en: 'great', es: 'genial', fr: 'excellent' },
+    otima: { pt: 'ótima', en: 'great', es: 'genial', fr: 'excellente' },
   };
 }
