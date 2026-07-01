@@ -1,8 +1,8 @@
 import React, { createContext, useState, useCallback, type ReactNode } from 'react';
-import type { Language } from '../../core/types';
-import { createTranslator } from '../../core/engine';
+import type { Language } from '../core/types';
+import { createTranslator } from '../core/engine';
 
-interface TranslationContextValue {
+export interface TranslationContextValue {
   locale: Language;
   changeLocale: (lang: Language) => void;
   t: (key: string, params?: Record<string, string | number>) => string;

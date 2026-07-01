@@ -1,8 +1,9 @@
-import ptData from '../../../src/i18n/pt.json';
-import enData from '../../../src/i18n/en.json';
-import esData from '../../../src/i18n/es.json';
+import ptData from '../i18n/pt.json';
+import enData from '../i18n/en.json';
+import esData from '../i18n/es.json';
+import type { Language } from './types';
 
-type LangMap = { en: string; es: string };
+type LangMap = { pt: string; en: string; es: string };
 
 function flattenJson(obj: Record<string, unknown>, prefix = ''): Record<string, string> {
   const result: Record<string, string> = {};
@@ -25,11 +26,14 @@ export const DICTIONARY: Record<string, LangMap> = {};
 
 for (const [key, ptVal] of Object.entries(ptFlat)) {
   if (ptVal && typeof ptVal === 'string' && ptVal.trim()) {
+    const translationEntry: LangMap = {
+      pt: ptVal,
+      en: enFlat[key] || ptVal,
+      es: esFlat[key] || ptVal,
+    };
+    DICTIONARY[key] = translationEntry;
     if (!DICTIONARY[ptVal]) {
-      DICTIONARY[ptVal] = {
-        en: enFlat[key] || ptVal,
-        es: esFlat[key] || ptVal,
-      };
+      DICTIONARY[ptVal] = translationEntry;
     }
   }
 }
@@ -730,6 +734,6 @@ const ALL_EXTRAS: [string, string, string][] = [
 
 for (const [pt, en, es] of ALL_EXTRAS) {
   if (!DICTIONARY[pt]) {
-    DICTIONARY[pt] = { en, es };
+    DICTIONARY[pt] = { pt, en, es };
   }
 }

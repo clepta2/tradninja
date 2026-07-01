@@ -57,9 +57,9 @@ export function translateVideoMetadata(
   video: VideoMetadata
 ): TranslatedVideo {
   const targets: Language[] = ['en', 'es'];
-  const translations: Record<Language, VideoMetadata> = {
+  const translations = {
     pt: { ...video },
-  };
+  } as Record<Language, VideoMetadata>;
 
   for (const lang of targets) {
     const title = translator.translate(video.title, {

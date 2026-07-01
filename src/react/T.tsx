@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, type TextProps, type StyleProp, type TextStyle } from 'react-native';
-import type { Language, TranslationKey } from '../../core/types';
-import { createTranslator } from '../../core/engine';
+import type { Language, TranslationKey } from '../core/types';
+import { createTranslator } from '../core/engine';
 
 interface TProps extends TextProps {
   k: TranslationKey;

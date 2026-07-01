@@ -1,6 +1,6 @@
 import { useContext, useCallback } from 'react';
 import { TranslationContext, type TranslationContextValue } from './Provider';
-import type { Language } from '../../core/types';
+import type { Language } from '../core/types';
 
 interface UseTranslationReturn extends TranslationContextValue {
   locale: Language;

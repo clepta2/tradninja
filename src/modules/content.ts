@@ -18,7 +18,7 @@ const translator = createTranslator({ cacheEnabled: true });
 
 const CONTENT_RULES: Array<{
   pattern: RegExp;
-  replacement: (match: string, target: Language) => string;
+  replacement: (match: string, num: string, target: Language) => string;
 }> = [
   {
     pattern: /(\d+)\s*(?:séries?|sets?|series?)/gi,
@@ -83,8 +83,8 @@ export function translateContent(
   for (const rule of CONTENT_RULES) {
     if (rule.pattern.test(text)) {
       rule.pattern.lastIndex = 0;
-      result = text.replace(rule.pattern, (match) =>
-        rule.replacement(match, target)
+      result = text.replace(rule.pattern, (match, num) =>
+        rule.replacement(match, num, target)
       );
       patternMatched = true;
     }

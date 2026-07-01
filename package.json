@@ -31,5 +31,16 @@
     "type": "git",
     "url": "https://github.com/clepta2/tradninja"
   },
-  "engines": { "node": ">=16.0.0" }
+  "engines": { "node": ">=16.0.0" },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-native": ">=0.60.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-native": "^0.70.0",
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0"
+  }
 }

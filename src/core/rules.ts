@@ -42,11 +42,9 @@ const NEGATION: Record<string, Record<Language, string>> = {
 const GERUND_MAP: Record<string, string> = {
   ando: 'ing',
   endo: 'ing',
-  ando: 'ing',
   indo: 'ing',
   ondo: 'ing',
   undo: 'ing',
-  ando: 'ing',
 };
 
 const NUMBER_FORMATS: Record<Language, {
