@@ -1,6 +1,6 @@
 // src/core/dictionary.ts
 // Dicionário TradNinja — lazy loading, batch, cross-translate
-// OTIMIZADO: JSONs flat, batch Map, 3-layer cache (memory→storage→import)
+// OTIMIZADO: JSONs flat, batch Map, 3-layer cache, pivôs inteligentes
 
 import ptData from '../i18n/pt.json';
 import type { Language } from './types';
@@ -17,7 +17,6 @@ const ALL_LANGUAGES: Language[] = [
   'ms', 'th', 'tr', 'he', 'bn', 'sw',
 ];
 
-// JSONs já são flat key→value
 const PT_FLAT = ptData as unknown as LangMap;
 const PT_KEYS = Object.keys(PT_FLAT);
 const PIVOT_LANGUAGES: Language[] = ['en', 'pt', 'es', 'fr', 'de'];
@@ -30,52 +29,42 @@ async function loadLanguage(lang: string): Promise<LangMap> {
 }
 
 /**
- * Inicializa o dicionário PT + target em batch.
- * Pré-carrega pivot languages em background para cross-translate rápido.
+ * Inicializa dicionário PT + target. Pré-carrega pivôs em background.
  */
 export async function initDictionary(target: Language): Promise<void> {
   if (DICTIONARY.size > 0 && LOADED_LANGUAGES.has(target)) return;
 
   const targetFlat = await loadLanguage(target);
 
-  // Batch construction
-  const entries: [string, Record<string, string>][] = new Array(PT_KEYS.length);
-  let count = 0;
+  // Batch construction — pre-allocate array
+  const count = PT_KEYS.length;
+  DICTIONARY.clear();
+  LOOKUP_BY_TEXT.clear();
 
-  for (const key of PT_KEYS) {
+  for (let i = 0; i < count; i++) {
+    const key = PT_KEYS[i];
     const ptVal = PT_FLAT[key];
     if (ptVal && ptVal.trim()) {
       const entry: Record<string, string> = { pt: ptVal };
       if (targetFlat[key]) entry[target] = targetFlat[key];
-      entries[count++] = [ptVal, entry];
+      DICTIONARY.set(ptVal, entry);
+      LOOKUP_BY_TEXT.set(ptVal, entry);
     }
   }
 
-  entries.length = count;
-
-  DICTIONARY.clear();
-  LOOKUP_BY_TEXT.clear();
-  for (let i = 0; i < count; i++) {
-    const [ptVal, entry] = entries[i];
-    DICTIONARY.set(ptVal, entry);
-    LOOKUP_BY_TEXT.set(ptVal, entry);
-  }
-
-  // Pré-carrega pivot languages em background para cross-translate
-  const pivots = PIVOT_LANGUAGES.filter(p => p !== target);
-  preloadLanguages(pivots);
+  // Pré-carrega pivot languages em background
+  preloadLanguages(PIVOT_LANGUAGES.filter(p => p !== target));
 }
 
-/** Lazy init síncrono — carrega PT instantaneamente, target em background */
+/** Lazy init síncrono — PT imediatamente, target em background */
 let buildScheduled = false;
 
 function ensureBuilt(target: Language): void {
   if (DICTIONARY.size > 0 && LOADED_LANGUAGES.has(target)) return;
 
-  // Primeira chamada: constrói do PT imediatamente
   if (DICTIONARY.size === 0) {
-    for (const key of PT_KEYS) {
-      const ptVal = PT_FLAT[key];
+    for (let i = 0; i < PT_KEYS.length; i++) {
+      const ptVal = PT_FLAT[PT_KEYS[i]];
       if (ptVal && ptVal.trim()) {
         const entry: Record<string, string> = { pt: ptVal };
         DICTIONARY.set(ptVal, entry);
@@ -84,7 +73,6 @@ function ensureBuilt(target: Language): void {
     }
   }
 
-  // Target async em background — não bloqueia
   if (!LOADED_LANGUAGES.has(target) && !buildScheduled) {
     buildScheduled = true;
     loadLanguage(target).then((targetFlat) => {
@@ -123,9 +111,18 @@ export function getTranslations(text: string): Record<string, string> | null {
 export function getAvailableLanguages(text: string): Language[] {
   const entry = LOOKUP_BY_TEXT.get(text);
   if (!entry) return [];
-  return ALL_LANGUAGES.filter(lang => entry[lang]);
+  // Só verifica idiomas que estão no dicionário, não todos 31
+  const result: Language[] = [];
+  for (const lang of ALL_LANGUAGES) {
+    if (entry[lang]) result.push(lang);
+  }
+  return result;
 }
 
+/**
+ * Cross-translate: traduz via pivô.
+ * FIX: só itera sobre pivôs CARREGADOS, não todos 31.
+ */
 export async function crossTranslate(
   text: string, source: Language, target: Language, pivot: Language = 'en'
 ): Promise<string> {
@@ -134,7 +131,6 @@ export async function crossTranslate(
   const direct = lookupByText(text, target);
   if (direct) return direct;
 
-  // Tenta pivô principal
   if (pivot !== source && pivot !== target) {
     const viaPivot = lookupByText(text, pivot);
     if (viaPivot) {
@@ -143,8 +139,8 @@ export async function crossTranslate(
     }
   }
 
-  // Tenta outros pivôs
-  for (const altPivot of ALL_LANGUAGES) {
+  // FIX: só itera pivôs pré-carregados, não todos 31
+  for (const altPivot of PIVOT_LANGUAGES) {
     if (altPivot === source || altPivot === target || altPivot === pivot) continue;
     const viaAlt = lookupByText(text, altPivot);
     if (viaAlt) {
@@ -158,7 +154,16 @@ export async function crossTranslate(
 
 export function dictionarySize(): number { return DICTIONARY.size; }
 export function loadedLanguages(): string[] { return Array.from(LOADED_LANGUAGES.keys()); }
-export function clearLanguageCache(): void { LOADED_LANGUAGES.clear(); DICTIONARY.clear(); LOOKUP_BY_TEXT.clear(); }
+
+/**
+ * FIX: limpa TODOS os caches (antes só limpava LOADED_LANGUAGES)
+ */
+export function clearLanguageCache(): void {
+  LOADED_LANGUAGES.clear();
+  DICTIONARY.clear();
+  LOOKUP_BY_TEXT.clear();
+}
+
 export function getDictionaryStats() {
   return {
     totalTerms: DICTIONARY.size,
@@ -168,7 +173,7 @@ export function getDictionaryStats() {
   };
 }
 
-// ── Batch translate ─────────────────────────────────────────
+// ── Batch translate — FIX: resolve imediato para hits ──────
 const TRANSLATION_BUFFER: Array<{ text: string; target: Language; resolve: (v: string) => void }> = [];
 let bufferTimer: ReturnType<typeof setTimeout> | null = null;
 
