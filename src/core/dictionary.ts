@@ -107,6 +107,48 @@ export function getTranslations(text: string, target: Language): Record<string, 
 }
 
 /**
+ * Cross-translate: traduz de um idioma para outro via pivô.
+ * Ex: PT → EN → JA (usa EN como intermediário)
+ */
+export async function crossTranslate(
+  text: string,
+  source: Language,
+  target: Language,
+  pivot: Language = 'en'
+): Promise<string> {
+  // Se source === target, retorna o texto original
+  if (source === target) return text;
+
+  // Se tem dicionário direto, usa
+  const direct = lookupByText(text, target);
+  if (direct) return direct;
+
+  // Cross-translate via pivô: source → pivot → target
+  if (pivot !== source && pivot !== target) {
+    const viaPivot = lookupByText(text, pivot);
+    if (viaPivot) {
+      const final = lookupByText(viaPivot, target);
+      if (final) return final;
+    }
+  }
+
+  return text;
+}
+
+/**
+ * Retorna todos os idiomas disponíveis para um texto.
+ */
+export function getAvailableLanguages(text: string): Language[] {
+  const langs: Language[] = [];
+  const allLangs: Language[] = ['pt', 'en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'zh', 'ar', 'ru', 'hi'];
+  for (const lang of allLangs) {
+    const entry = LOOKUP_BY_TEXT.get(text);
+    if (entry && entry[lang]) langs.push(lang);
+  }
+  return langs;
+}
+
+/**
  * Busca tradução por chave (O(1)).
  * @example lookupByKey('common.save', 'en') → 'Save'
  */
@@ -183,4 +225,11 @@ export function getTranslations(text: string, target: Language): Record<string, 
  */
 export function dictionarySize(): number {
   return DICTIONARY.size;
+}
+
+/**
+ * Retorna todos os idiomas carregados.
+ */
+export function loadedLanguages(): string[] {
+  return Array.from(LOADED_LANGUAGES.keys());
 }

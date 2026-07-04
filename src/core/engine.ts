@@ -3,7 +3,7 @@
 
 import type { Language, TranslateOptions, TranslationResult, ModuleConfig, TranslationKey } from './types';
 import { DEFAULT_CONFIG } from './types';
-import { lookupByKey, lookupByText, translateBatch } from './dictionary';
+import { lookupByKey, lookupByText, translateBatch, crossTranslate } from './dictionary';
 import { applyRules } from './rules';
 import { PATTERNS } from './patterns';
 import * as Cache from './cache';
@@ -30,37 +30,11 @@ function interpolateParams(text: string, params?: Record<string, string | number
 
 // ── Interface do Tradutor ───────────────────────────────────
 interface Translator {
-  /**
-   * Traduz um texto para o idioma destino.
-   * @param text - Texto para traduzir (chave do dicionário ou texto livre)
-   * @param options - Opções de tradução
-   * @returns Resultado com texto traduzido e metadados
-   */
   translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult;
-
-  /**
-   * Traduz todas as strings de um objeto.
-   * @param obj - Objeto com strings para traduzir
-   * @param target - Idioma destino
-   * @returns Objeto com strings traduzidas
-   */
   translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string>;
-
-  /**
-   * Traduz todos os arquivos JSON em um diretório.
-   * @param dir - Caminho do diretório
-   * @param options - Opções de tradução
-   * @returns Array com resultados de cada tradução
-   */
   translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[];
-
-  /**
-   * Traduz múltiplos textos de uma vez (batch).
-   * @param texts - Array de textos para traduzir
-   * @param target - Idioma destino
-   * @returns Array com textos traduzidos
-   */
   translateBatch(texts: string[], target: Language): Promise<string[]>;
+  crossTranslate(text: string, source: Language, target: Language, pivot?: Language): Promise<string>;
 }
 
 /**
@@ -194,5 +168,5 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
     return results;
   }
 
-  return { translate, translateObject, translateProject, translateBatch: translateBatchLocal };
+  return { translate, translateObject, translateProject, translateBatch: translateBatchLocal, crossTranslate: crossTranslate };
 }
