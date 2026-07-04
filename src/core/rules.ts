@@ -45,7 +45,7 @@ const NEGATION_ES = Object.entries(NEGATION).map(([pt, m]) => ({
   regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: m.es,
 }));
 
-// ── Regras de gramática (pré-compiladas) ───────────────────
+// ── Regras de gramática ────────────────────────────────────
 export const GRAMMAR_RULES: GrammarRule[] = [
   ...ARTICLES_PT_EN.map((a, i) => ({
     id: `article-${i}`, source: 'pt' as Language, target: 'en' as Language,
@@ -57,7 +57,7 @@ export const GRAMMAR_RULES: GrammarRule[] = [
   })),
 ];
 
-// ── Aplicação de regras (regex pré-compilados) ──────────────
+// ── Aplicação de regras ────────────────────────────────────
 export function applyRules(text: string, source: Language, target: Language): string {
   if (source === 'pt' && target === 'en') {
     let r = text;

@@ -1,5 +1,5 @@
 // src/core/cache.ts
-// Cache LRU com TTL e batch eviction
+// Cache LRU com TTL + batch eviction + stats
 
 interface CacheEntry {
   value: string;
@@ -10,12 +10,13 @@ interface CacheEntry {
 interface CacheStats {
   hits: number;
   misses: number;
+  hitRate: number;
 }
 
 let store = new Map<string, CacheEntry>();
 let maxSize = 5000;
 let ttlMs = 3600000;
-let stats: CacheStats = { hits: 0, misses: 0 };
+let stats: CacheStats = { hits: 0, misses: 0, hitRate: 0 };
 
 // ── Hash key (djb2) ────────────────────────────────────────
 function hashKey(source: string, target: string, text: string): string {
@@ -34,12 +35,10 @@ function evict(): void {
   if (store.size <= maxSize) return;
 
   const now = Date.now();
-  // Remove expirados
   for (const [key, entry] of store) {
     if (entry.expiresAt <= now) store.delete(key);
   }
 
-  // Remove por LRU (menos acessado primeiro)
   if (store.size > maxSize + EVICT_BATCH) {
     const entries = Array.from(store.entries())
       .sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
@@ -53,10 +52,11 @@ function evict(): void {
 export function get(source: string, target: string, text: string): string | null {
   const key = hashKey(source, target, text);
   const entry = store.get(key);
-  if (!entry) { stats.misses++; return null; }
-  if (entry.expiresAt <= Date.now()) { store.delete(key); stats.misses++; return null; }
+  if (!entry) { stats.misses++; updateHitRate(); return null; }
+  if (entry.expiresAt <= Date.now()) { store.delete(key); stats.misses++; updateHitRate(); return null; }
   entry.lastAccessed = Date.now();
   stats.hits++;
+  updateHitRate();
   return entry.value;
 }
 
@@ -67,9 +67,15 @@ export function set(source: string, target: string, text: string, value: string)
   evict();
 }
 
+// ── Hit rate ───────────────────────────────────────────────
+function updateHitRate(): void {
+  const total = stats.hits + stats.misses;
+  stats.hitRate = total > 0 ? stats.hits / total : 0;
+}
+
 export function clear(): void {
   store.clear();
-  stats = { hits: 0, misses: 0 };
+  stats = { hits: 0, misses: 0, hitRate: 0 };
 }
 
 export function size(): number {

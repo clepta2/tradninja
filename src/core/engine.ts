@@ -1,5 +1,5 @@
 // src/core/engine.ts
-// Motor de tradução otimizado — regex pré-compilados, patterns pré-computados
+// Motor de tradução otimizado — regex pré-compilados, batch translate
 
 import type {
   Language,
@@ -9,7 +9,7 @@ import type {
   TranslationKey,
 } from './types';
 import { DEFAULT_CONFIG } from './types';
-import { lookupByKey, lookupByText } from './dictionary';
+import { lookupByKey, lookupByText, translateBatch } from './dictionary';
 import { applyRules } from './rules';
 import { PATTERNS } from './patterns';
 import * as Cache from './cache';
@@ -38,6 +38,7 @@ interface Translator {
   translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult;
   translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string>;
   translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[];
+  translateBatch(texts: string[], target: Language): Promise<string[]>;
 }
 
 export function createTranslator(config?: Partial<ModuleConfig>): Translator {
@@ -79,14 +80,12 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
       if (cached) return ok(cached, true);
     }
 
-    // Lookup por texto (O(1) com Map)
     const dictByText = lookupByText(text, target);
     if (dictByText) {
       if (cfg.cacheEnabled) Cache.set(source, target, text, dictByText);
       return ok(dictByText, false);
     }
 
-    // Lookup por chave (O(1))
     const dictByKey = lookupByKey(text, target);
     if (dictByKey) {
       if (cfg.cacheEnabled) Cache.set(source, target, text, dictByKey);
@@ -120,6 +119,11 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
     return result;
   }
 
+  // ── Batch translate (buffering de respostas) ──────────────
+  async function translateBatchLocal(texts: string[], target: Language): Promise<string[]> {
+    return translateBatch(texts, target);
+  }
+
   function translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[] {
     const results: TranslationResult[] = [];
     const fs = require('fs');
@@ -150,5 +154,5 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
     return results;
   }
 
-  return { translate, translateObject, translateProject };
+  return { translate, translateObject, translateProject, translateBatch: translateBatchLocal };
 }
