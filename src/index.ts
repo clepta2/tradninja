@@ -41,3 +41,4 @@ export {
 
 // ── React ─────────────────────────────────────────────────────────
 export { T, Trans, TranslationProvider, useTranslation, TranslationContext } from './react';
+export { quick, quickAll, quickLangs } from './react/quick';

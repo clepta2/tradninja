@@ -26,32 +26,36 @@ npm install tradninja
 
 Ou copie a pasta `src/` para o seu projeto.
 
-## Uso Rapido
+## Uso Rapido (iniciantes)
 
 ```typescript
-import { createTranslator } from 'tradninja';
+import { quick } from 'tradninja';
 
-const t = createTranslator({ defaultTarget: 'en' });
+const t = quick('pt', 'en');
 
-t.translate('Salvar').text;   // 'Save'
-t.translate('Excluir').text;  // 'Delete'
-t.translate('Bom dia').text;  // 'Good morning'
+t('Salvar');           // 'Save'
+t('Excluir');          // 'Delete'
+t('Bom dia');          // 'Good morning'
+```
 
-// Com parametros
-t.translate('Ola, {name}!', { params: { name: 'Joao' } }).text;
-// 'Hello, Joao!'
+## Uso Completo (React)
 
-// Traduzir objeto inteiro
-t.translateObject({ title: 'Inicio', btn: 'Salvar' }, 'es');
-// { title: 'Inicio', btn: 'Guardar' }
+```typescript
+import { TranslationProvider, T, Trans, useTranslation } from 'tradninja/react';
 
-// Batch translate (em lote)
-await t.translateBatch(['Salvar', 'Excluir', 'Editar'], 'ja');
-// ['保存', '削除', '編集']
+// Provider
+<TranslationProvider defaultLocale="pt">
+  <App />
+</TranslationProvider>
 
-// Cross-translate (via pivô)
-await t.crossTranslate('Salvar', 'pt', 'ja', 'en');
-// PT→EN: 'Save' → EN→JA: '保存'
+// Simples
+<T k="auth.login" />
+
+// Com interpolacao
+<Trans k="home.greeting" name={userName} />
+
+// Hook
+const { t, locale, changeLocale } = useTranslation();
 ```
 
 ## React
@@ -74,6 +78,12 @@ import { T, Trans, TranslationProvider, useTranslation } from 'tradninja/react';
 const { t, locale, changeLocale } = useTranslation();
 t('common.save') // 'Save'
 ```
+
+## Guia para Iniciantes
+
+Nunca programou antes? Sem problemas. Veja o **[Guia do Iniciante](docs/GUIA-INICIANTE.md)** para um passo a passo completo com copiar-e-colar.
+
+Tem alguma dúvida? Veja os **[Exemplos Práticos](docs/EXEMPLOS.md)** com 10 projetos prontos para usar.
 
 ## 31 Idiomas
 
