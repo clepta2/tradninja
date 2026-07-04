@@ -129,13 +129,21 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
   function translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(obj)) {
-      result[key] = typeof value === 'string' ? translate(value, { target }).text : String(value);
+      try {
+        result[key] = typeof value === 'string' ? translate(value, { target }).text : String(value);
+      } catch {
+        result[key] = typeof value === 'string' ? value : String(value);
+      }
     }
     return result;
   }
 
   async function translateBatchLocal(texts: string[], target: Language): Promise<string[]> {
-    return translateBatch(texts, target);
+    try {
+      return await translateBatch(texts, target);
+    } catch {
+      return texts;
+    }
   }
 
   function translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[] {
