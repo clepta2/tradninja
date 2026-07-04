@@ -1,13 +1,7 @@
 // src/core/engine.ts
-// Motor de tradução otimizado — regex pré-compilados, batch translate
+// Motor de tradução TradNinja — API principal
 
-import type {
-  Language,
-  TranslateOptions,
-  TranslationResult,
-  ModuleConfig,
-  TranslationKey,
-} from './types';
+import type { Language, TranslateOptions, TranslationResult, ModuleConfig, TranslationKey } from './types';
 import { DEFAULT_CONFIG } from './types';
 import { lookupByKey, lookupByText, translateBatch } from './dictionary';
 import { applyRules } from './rules';
@@ -15,10 +9,10 @@ import { PATTERNS } from './patterns';
 import * as Cache from './cache';
 import { resolveICU, hasICUMessages } from '../modules/icu';
 
-// ── Regex de interpolação (pré-compilado) ──────────────────
+// ── Regex pré-compilado ────────────────────────────────────
 const INTERPOLATE_REGEX = /\{(\w+)\}/g;
 
-// ── Patterns pré-computados (lowercase calculado uma vez) ──
+// ── Patterns pré-computados ────────────────────────────────
 const PRECOMPUTED_PATTERNS = Object.entries(PATTERNS).map(([key, pattern]) => ({
   key,
   ptLower: pattern.pt.toLowerCase(),
@@ -34,13 +28,60 @@ function interpolateParams(text: string, params?: Record<string, string | number
   );
 }
 
+// ── Interface do Tradutor ───────────────────────────────────
 interface Translator {
+  /**
+   * Traduz um texto para o idioma destino.
+   * @param text - Texto para traduzir (chave do dicionário ou texto livre)
+   * @param options - Opções de tradução
+   * @returns Resultado com texto traduzido e metadados
+   */
   translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult;
+
+  /**
+   * Traduz todas as strings de um objeto.
+   * @param obj - Objeto com strings para traduzir
+   * @param target - Idioma destino
+   * @returns Objeto com strings traduzidas
+   */
   translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string>;
+
+  /**
+   * Traduz todos os arquivos JSON em um diretório.
+   * @param dir - Caminho do diretório
+   * @param options - Opções de tradução
+   * @returns Array com resultados de cada tradução
+   */
   translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[];
+
+  /**
+   * Traduz múltiplos textos de uma vez (batch).
+   * @param texts - Array de textos para traduzir
+   * @param target - Idioma destino
+   * @returns Array com textos traduzidos
+   */
   translateBatch(texts: string[], target: Language): Promise<string[]>;
 }
 
+/**
+ * Cria um tradutor TradNinja.
+ *
+ * @example
+ * ```ts
+ * const translator = createTranslator({ defaultTarget: 'en' });
+ *
+ * // Traduzir texto
+ * const result = translator.translate('Salvar');
+ * console.log(result.text); // "Save"
+ *
+ * // Traduzir com parâmetros
+ * const result2 = translator.translate('Olá, {name}!', { params: { name: 'João' } });
+ * console.log(result2.text); // "Hello, João!"
+ *
+ * // Traduzir objeto
+ * const translated = translator.translateObject({ title: 'Início', button: 'Salvar' }, 'en');
+ * ```
+ */
 export function createTranslator(config?: Partial<ModuleConfig>): Translator {
   const cfg: ModuleConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -119,7 +160,6 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
     return result;
   }
 
-  // ── Batch translate (buffering de respostas) ──────────────
   async function translateBatchLocal(texts: string[], target: Language): Promise<string[]> {
     return translateBatch(texts, target);
   }

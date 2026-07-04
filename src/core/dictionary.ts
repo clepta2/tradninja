@@ -1,5 +1,5 @@
 // src/core/dictionary.ts
-// Dicionário ultra-otimizado — lazy loading por idioma + índices
+// Dicionário TradNinja — lazy loading, índices, batching
 
 import ptData from '../i18n/pt.json';
 import type { Language } from './types';
@@ -27,7 +27,7 @@ async function loadLanguage(lang: string): Promise<LangMap> {
   return flat;
 }
 
-// ── Flatten JSON ────────────────────────────────────────────
+// ── Flatten JSON recursivo ──────────────────────────────────
 function flattenJson(obj: Record<string, unknown>, prefix = ''): LangMap {
   const result: LangMap = {};
   for (const [key, val] of Object.entries(obj)) {
@@ -59,7 +59,6 @@ async function buildDictionary(target: Language): Promise<void> {
     }
   }
 
-  // Extras
   const extras: [string, string, string][] = [
     ['Salvar', 'Save', 'Guardar'], ['Excluir', 'Delete', 'Eliminar'],
     ['Editar', 'Edit', 'Editar'], ['Confirmar', 'Confirm', 'Confirmar'],
@@ -77,14 +76,24 @@ async function buildDictionary(target: Language): Promise<void> {
   built = true;
 }
 
-// ── Lookup por texto (O(1)) ────────────────────────────────
+/**
+ * Busca tradução por texto exato (O(1)).
+ * @param text - Texto PT para buscar
+ * @param target - Idioma destino
+ * @returns Texto traduzido ou null
+ */
 export function lookupByText(text: string, target: Language): string | null {
   buildDictionary(target);
   const entry = LOOKUP_BY_TEXT.get(text);
   return entry ? entry[target] || null : null;
 }
 
-// ── Lookup por chave ────────────────────────────────────────
+/**
+ * Busca tradução por chave (O(1)).
+ * @param key - Chave do dicionário
+ * @param target - Idioma destino
+ * @returns Texto traduzido ou null
+ */
 export function lookupByKey(key: string, target: Language): string | null {
   buildDictionary(target);
   const entry = DICTIONARY.get(key);
@@ -99,6 +108,10 @@ const TRANSLATION_BUFFER: Array<{
 }> = [];
 let bufferTimer: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Traduz múltiplos textos de uma vez (batch).
+ * Agrupa traduções e processa em lote para melhor performance.
+ */
 export function translateBatch(texts: string[], target: Language): Promise<string[]> {
   return new Promise((resolve) => {
     buildDictionary(target);
@@ -132,6 +145,9 @@ function processBuffer(): void {
   }
 }
 
+/**
+ * Retorna o número de termos no dicionário.
+ */
 export function dictionarySize(): number {
   return DICTIONARY.size;
 }

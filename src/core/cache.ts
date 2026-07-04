@@ -18,7 +18,6 @@ let maxSize = 5000;
 let ttlMs = 3600000;
 let stats: CacheStats = { hits: 0, misses: 0, hitRate: 0 };
 
-// ── Hash key (djb2) ────────────────────────────────────────
 function hashKey(source: string, target: string, text: string): string {
   let h = 0;
   const raw = `${source}:${target}:${text}`;
@@ -28,17 +27,14 @@ function hashKey(source: string, target: string, text: string): string {
   return h.toString(36);
 }
 
-// ── Eviction LRU (batch de 50) ─────────────────────────────
 const EVICT_BATCH = 50;
 
 function evict(): void {
   if (store.size <= maxSize) return;
-
   const now = Date.now();
   for (const [key, entry] of store) {
     if (entry.expiresAt <= now) store.delete(key);
   }
-
   if (store.size > maxSize + EVICT_BATCH) {
     const entries = Array.from(store.entries())
       .sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
@@ -48,7 +44,6 @@ function evict(): void {
   }
 }
 
-// ── Get com LRU tracking ───────────────────────────────────
 export function get(source: string, target: string, text: string): string | null {
   const key = hashKey(source, target, text);
   const entry = store.get(key);
@@ -60,14 +55,12 @@ export function get(source: string, target: string, text: string): string | null
   return entry.value;
 }
 
-// ── Set com batch eviction ─────────────────────────────────
 export function set(source: string, target: string, text: string, value: string): void {
   const key = hashKey(source, target, text);
   store.set(key, { value, expiresAt: Date.now() + ttlMs, lastAccessed: Date.now() });
   evict();
 }
 
-// ── Hit rate ───────────────────────────────────────────────
 function updateHitRate(): void {
   const total = stats.hits + stats.misses;
   stats.hitRate = total > 0 ? stats.hits / total : 0;
