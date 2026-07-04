@@ -1,16 +1,35 @@
 // src/core/dictionary.ts
-// Dicionário otimizado — lazy loading + índices + buffering
+// Dicionário ultra-otimizado — lazy loading por idioma + índices
 
 import ptData from '../i18n/pt.json';
-import enData from '../i18n/en.json';
-import esData from '../i18n/es.json';
 import type { Language } from './types';
 
-type LangMap = { pt: string; en: string; es: string };
+type LangMap = Record<string, string>;
 
-// ── Flatten JSON recursivo (otimizado) ──────────────────────
-function flattenJson(obj: Record<string, unknown>, prefix = ''): Record<string, string> {
-  const result: Record<string, string> = {};
+// ── Cache de idiomas carregados ─────────────────────────────
+const LOADED_LANGUAGES = new Map<string, LangMap>();
+const DICTIONARY = new Map<string, { pt: string; en?: string; es?: string }>();
+const LOOKUP_BY_TEXT = new Map<string, { pt: string; en?: string; es?: string }>();
+
+// ── Lazy load de idioma ─────────────────────────────────────
+async function loadLanguage(lang: string): Promise<LangMap> {
+  if (LOADED_LANGUAGES.has(lang)) return LOADED_LANGUAGES.get(lang)!;
+
+  let data: Record<string, unknown>;
+  try {
+    data = await import(`../i18n/${lang}.json`);
+  } catch {
+    return {};
+  }
+
+  const flat = flattenJson(data as Record<string, unknown>);
+  LOADED_LANGUAGES.set(lang, flat);
+  return flat;
+}
+
+// ── Flatten JSON ────────────────────────────────────────────
+function flattenJson(obj: Record<string, unknown>, prefix = ''): LangMap {
+  const result: LangMap = {};
   for (const [key, val] of Object.entries(obj)) {
     const path = prefix ? `${prefix}.${key}` : key;
     if (typeof val === 'object' && val !== null) {
@@ -22,66 +41,35 @@ function flattenJson(obj: Record<string, unknown>, prefix = ''): Record<string, 
   return result;
 }
 
-// ── Índices de lookup (pré-computados) ──────────────────────
-export const DICTIONARY: Record<string, LangMap> = {};
-const LOOKUP_BY_TEXT = new Map<string, LangMap>();
-const LOOKUP_BY_PREFIX = new Map<string, string[]>(); // prefixo → chaves
-
-// ── Buffer de traduções pendentes ───────────────────────────
-const TRANSLATION_BUFFER: Array<{
-  text: string;
-  target: Language;
-  resolve: (value: string) => void;
-}> = [];
-let bufferTimer: ReturnType<typeof setTimeout> | null = null;
-const BUFFER_DELAY = 16; // ~1 frame (60fps)
-
 // ── Build dictionary (lazy init) ───────────────────────────
 let built = false;
 
-function buildDictionary(): void {
-  if (built) return;
+async function buildDictionary(target: Language): Promise<void> {
+  if (built && DICTIONARY.size > 0) return;
 
   const ptFlat = flattenJson(ptData as Record<string, unknown>);
-  const enFlat = flattenJson(enData as Record<string, unknown>);
-  const esFlat = flattenJson(esData as Record<string, unknown>);
+  const targetFlat = await loadLanguage(target);
 
   for (const [key, ptVal] of Object.entries(ptFlat)) {
     if (ptVal && typeof ptVal === 'string' && ptVal.trim()) {
-      const entry: LangMap = {
-        pt: ptVal,
-        en: enFlat[key] || ptVal,
-        es: esFlat[key] || ptVal,
-      };
-      DICTIONARY[key] = entry;
-      if (!DICTIONARY[ptVal]) DICTIONARY[ptVal] = entry;
+      const entry = { pt: ptVal, en: targetFlat[key], es: targetFlat[key] };
+      DICTIONARY.set(key, entry);
+      if (!DICTIONARY.has(ptVal)) DICTIONARY.set(ptVal, entry);
       LOOKUP_BY_TEXT.set(ptVal, entry);
-
-      // Índice por prefixo (3 primeiros chars)
-      const prefix = ptVal.substring(0, 3).toLowerCase();
-      if (!LOOKUP_BY_PREFIX.has(prefix)) LOOKUP_BY_PREFIX.set(prefix, []);
-      LOOKUP_BY_PREFIX.get(prefix)!.push(ptVal);
     }
   }
 
-  // Extras pré-definidos
+  // Extras
   const extras: [string, string, string][] = [
-    ['Abrir', 'Open', 'Abrir'], ['Fechar menu', 'Close menu', 'Cerrar menú'],
-    ['Menu principal', 'Main menu', 'Menú principal'], ['Carregando...', 'Loading...', 'Cargando...'],
-    ['Salvo com sucesso', 'Saved successfully', 'Guardado con éxito'], ['Erro ao salvar', 'Error saving', 'Error al guardar'],
-    ['Erro ao carregar', 'Error loading', 'Error al cargar'], ['Tente novamente', 'Try again', 'Intenta de nuevo'],
-    ['Sem conexão', 'No connection', 'Sin conexión'], ['Modo offline', 'Offline mode', 'Modo offline'],
-    ['Criar conta', 'Create account', 'Crear cuenta'], ['Esqueceu a senha?', 'Forgot password?', '¿Olvidaste tu contraseña?'],
-    ['Pular', 'Skip', 'Saltar'], ['Próximo', 'Next', 'Siguiente'], ['Anterior', 'Previous', 'Anterior'],
-    ['Salvar', 'Save', 'Guardar'], ['Excluir', 'Delete', 'Eliminar'], ['Editar', 'Edit', 'Editar'],
-    ['Confirmar', 'Confirm', 'Confirmar'], ['Cancelar', 'Cancel', 'Cancelar'],
-    ['Enviar', 'Send', 'Enviar'], ['Pesquisar...', 'Search...', 'Buscar...'],
+    ['Salvar', 'Save', 'Guardar'], ['Excluir', 'Delete', 'Eliminar'],
+    ['Editar', 'Edit', 'Editar'], ['Confirmar', 'Confirm', 'Confirmar'],
+    ['Cancelar', 'Cancel', 'Cancelar'], ['Enviar', 'Send', 'Enviar'],
   ];
 
   for (const [pt, en, es] of extras) {
-    if (!DICTIONARY[pt]) {
+    if (!DICTIONARY.has(pt)) {
       const entry = { pt, en, es };
-      DICTIONARY[pt] = entry;
+      DICTIONARY.set(pt, entry);
       LOOKUP_BY_TEXT.set(pt, entry);
     }
   }
@@ -89,34 +77,31 @@ function buildDictionary(): void {
   built = true;
 }
 
-// ── Lookup rápido por texto (O(1)) ─────────────────────────
+// ── Lookup por texto (O(1)) ────────────────────────────────
 export function lookupByText(text: string, target: Language): string | null {
-  buildDictionary();
+  buildDictionary(target);
   const entry = LOOKUP_BY_TEXT.get(text);
   return entry ? entry[target] || null : null;
 }
 
-// ── Lookup por chave (O(1)) ────────────────────────────────
+// ── Lookup por chave ────────────────────────────────────────
 export function lookupByKey(key: string, target: Language): string | null {
-  buildDictionary();
-  const entry = DICTIONARY[key];
+  buildDictionary(target);
+  const entry = DICTIONARY.get(key);
   return entry ? entry[target] || null : null;
 }
 
-// ── Lookup por prefixo (busca parcial) ──────────────────────
-export function lookupByPrefix(prefix: string, target: Language): LangMap[] {
-  buildDictionary();
-  const p = prefix.toLowerCase().substring(0, 3);
-  const keys = LOOKUP_BY_PREFIX.get(p) || [];
-  return keys.map(k => DICTIONARY[k]).filter(Boolean);
-}
+// ── Batch translate ─────────────────────────────────────────
+const TRANSLATION_BUFFER: Array<{
+  text: string;
+  target: Language;
+  resolve: (value: string) => void;
+}> = [];
+let bufferTimer: ReturnType<typeof setTimeout> | null = null;
 
-// ── Batch translate (buffering de respostas) ────────────────
-export function translateBatch(
-  texts: string[],
-  target: Language
-): Promise<string[]> {
+export function translateBatch(texts: string[], target: Language): Promise<string[]> {
   return new Promise((resolve) => {
+    buildDictionary(target);
     const results: string[] = new Array(texts.length);
     let pending = texts.length;
 
@@ -132,9 +117,7 @@ export function translateBatch(
       });
     });
 
-    if (!bufferTimer) {
-      bufferTimer = setTimeout(processBuffer, BUFFER_DELAY);
-    }
+    if (!bufferTimer) bufferTimer = setTimeout(processBuffer, 16);
   });
 }
 
@@ -149,8 +132,6 @@ function processBuffer(): void {
   }
 }
 
-// ── Tamanho do dicionário ───────────────────────────────────
 export function dictionarySize(): number {
-  buildDictionary();
-  return Object.keys(DICTIONARY).length;
+  return DICTIONARY.size;
 }
