@@ -9,13 +9,8 @@ export type Language =
   | 'cs' | 'el' | 'hu' | 'ro' | 'uk' | 'id'
   | 'ms' | 'th' | 'tr' | 'he' | 'bn' | 'sw';
 
-/** Entrada do dicionário (PT → todos os idiomas) */
-export interface DictionaryEntry {
-  pt: string;
-  en: string;
-  es: string;
-  fr: string;
-}
+/** Entrada do dicionário — genérica para qualquer idioma */
+export type DictionaryEntry = Record<Language, string>;
 
 /** Opções de tradução */
 export interface TranslateOptions {

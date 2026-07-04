@@ -9,19 +9,15 @@ import { PATTERNS } from './patterns';
 import * as Cache from './cache';
 import { resolveICU, hasICUMessages } from '../modules/icu';
 
-// ── Regex pré-compilado ────────────────────────────────────
+// ── Pré-computados ─────────────────────────────────────────
 const INTERPOLATE_REGEX = /\{(\w+)\}/g;
 
-// ── Patterns pré-computados em Map para O(1) ────────────────
 const PATTERN_BY_PT = new Map<string, Record<string, string>>();
-for (const [key, pattern] of Object.entries(PATTERNS)) {
+for (const pattern of Object.values(PATTERNS)) {
   PATTERN_BY_PT.set(pattern.pt.toLowerCase(), pattern as Record<string, string>);
-  if (pattern.pt !== pattern.pt.toLowerCase()) {
-    PATTERN_BY_PT.set(pattern.pt, pattern as Record<string, string>);
-  }
+  if (pattern.pt !== pattern.pt.toLowerCase()) PATTERN_BY_PT.set(pattern.pt, pattern as Record<string, string>);
 }
 
-// ── Interpolação reutilizável ──────────────────────────────
 function interpolateParams(text: string, params?: Record<string, string | number>): string {
   if (!params) return text;
   return text.replace(INTERPOLATE_REGEX, (_, key) =>
@@ -29,7 +25,16 @@ function interpolateParams(text: string, params?: Record<string, string | number
   );
 }
 
-// ── Interface do Tradutor ───────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────
+function flattenObj(obj: Record<string, unknown>, prefix: string, out: Record<string, string>): void {
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (typeof v === 'object' && v !== null) flattenObj(v as Record<string, unknown>, key, out);
+    else out[key] = String(v);
+  }
+}
+
+// ── Interface ───────────────────────────────────────────────
 interface Translator {
   translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult;
   translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string>;
@@ -43,116 +48,85 @@ interface Translator {
  *
  * @example
  * ```ts
- * const translator = createTranslator({ defaultTarget: 'en' });
- *
- * // Traduzir texto
- * const result = translator.translate('Salvar');
- * console.log(result.text); // "Save"
- *
- * // Traduzir com parâmetros
- * const result2 = translator.translate('Olá, {name}!', { params: { name: 'João' } });
- * console.log(result2.text); // "Hello, João!"
- *
- * // Traduzir objeto
- * const translated = translator.translateObject({ title: 'Início', button: 'Salvar' }, 'en');
+ * const t = createTranslator({ defaultTarget: 'en' });
+ * t.translate('Salvar').text;                    // "Save"
+ * t.translate('Oi, {name}!', { params: { name: 'João' } }).text; // "Hi, João!"
+ * t.translateObject({ title: 'Início' }, 'es');  // { title: 'Inicio' }
  * ```
  */
 export function createTranslator(config?: Partial<ModuleConfig>): Translator {
   const cfg: ModuleConfig = { ...DEFAULT_CONFIG, ...config };
 
-  if (cfg.cacheEnabled) {
-    Cache.configure({ maxSize: cfg.cacheMaxSize, ttlMs: cfg.cacheTtlMs });
-  }
-
-  // Pré-carrega dicionário do idioma alvo
+  if (cfg.cacheEnabled) Cache.configure({ maxSize: cfg.cacheMaxSize, ttlMs: cfg.cacheTtlMs });
   initDictionary(cfg.defaultTarget).catch(() => {});
 
-  function tryPattern(text: string, target: Language): string | null {
-    const normalized = text.trim().toLowerCase();
-    return PATTERN_BY_PT.get(normalized)?.[target] || PATTERN_BY_PT.get(text)?.[target] || null;
-  }
-
+  // Pipeline de tradução: cache → dict → patterns → rules → fallback
   function translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult {
     const source = options?.source || cfg.defaultSource;
     const target = options?.target || cfg.defaultTarget;
     const params = options?.params;
 
     let resolved = text;
-    if (hasICUMessages(text) && params) {
-      resolved = resolveICU(text, params);
-    }
+    if (hasICUMessages(text) && params) resolved = resolveICU(text, params);
 
-    if (source === target) {
-      return { text: interpolateParams(resolved, params), source, target, fromCache: false, matched: true };
-    }
+    if (source === target) return { text: interpolateParams(resolved, params), source, target, fromCache: false, matched: true };
 
     const ok = (t: string, fromCache: boolean): TranslationResult =>
       ({ text: interpolateParams(t, params), source, target, fromCache, matched: true });
 
+    // 1. Cache
     if (cfg.cacheEnabled) {
       const cached = Cache.get(source, target, text);
       if (cached) return ok(cached, true);
     }
 
-    const dictByText = lookupByText(text, target);
-    if (dictByText) {
-      if (cfg.cacheEnabled) Cache.set(source, target, text, dictByText);
-      return ok(dictByText, false);
+    // 2. Dictionary (by text then by key)
+    const dictHit = lookupByText(text, target) || lookupByKey(text, target);
+    if (dictHit) {
+      if (cfg.cacheEnabled) Cache.set(source, target, text, dictHit);
+      return ok(dictHit, false);
     }
 
-    const dictByKey = lookupByKey(text, target);
-    if (dictByKey) {
-      if (cfg.cacheEnabled) Cache.set(source, target, text, dictByKey);
-      return ok(dictByKey, false);
+    // 3. Patterns (O(1) Map lookup)
+    const patternHit = PATTERN_BY_PT.get(text.trim().toLowerCase())?.[target] || PATTERN_BY_PT.get(text)?.[target];
+    if (patternHit) {
+      if (cfg.cacheEnabled) Cache.set(source, target, text, patternHit);
+      return ok(patternHit, false);
     }
 
-    const patternResult = tryPattern(text, target);
-    if (patternResult) {
-      if (cfg.cacheEnabled) Cache.set(source, target, text, patternResult);
-      return ok(patternResult, false);
+    // 4. Grammar rules
+    const ruleHit = applyRules(text, source, target);
+    if (ruleHit !== text) {
+      if (cfg.cacheEnabled) Cache.set(source, target, text, ruleHit);
+      return ok(ruleHit, false);
     }
 
-    const ruleResult = applyRules(text, source, target);
-    if (ruleResult !== text) {
-      if (cfg.cacheEnabled) Cache.set(source, target, text, ruleResult);
-      return ok(ruleResult, false);
-    }
-
-    if (cfg.fallbackEnabled && options?.fallback) {
-      return { text: interpolateParams(options.fallback, params), source, target, fromCache: false, matched: false };
-    }
-
+    // 5. Fallback
+    if (cfg.fallbackEnabled && options?.fallback) return { text: interpolateParams(options.fallback, params), source, target, fromCache: false, matched: false };
     return { text: interpolateParams(text, params), source, target, fromCache: false, matched: false };
   }
 
   function translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(obj)) {
-      try {
-        result[key] = typeof value === 'string' ? translate(value, { target }).text : String(value);
-      } catch {
-        result[key] = typeof value === 'string' ? value : String(value);
-      }
+      try { result[key] = typeof value === 'string' ? translate(value, { target }).text : String(value); }
+      catch { result[key] = typeof value === 'string' ? value : String(value); }
     }
     return result;
   }
 
   async function translateBatchLocal(texts: string[], target: Language): Promise<string[]> {
-    try {
-      return await translateBatch(texts, target);
-    } catch {
-      return texts;
-    }
+    try { return await translateBatch(texts, target); } catch { return texts; }
   }
 
   function translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[] {
     const results: TranslationResult[] = [];
-    const fs = require('fs');
-    const path = require('path');
+    const fs = require('fs') as typeof import('fs');
+    const pathMod = require('path') as typeof import('path');
 
-    function walk(currentDir: string): void {
-      for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-        const full = path.join(currentDir, entry.name);
+    function walk(d: string): void {
+      for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+        const full = pathMod.join(d, entry.name);
         if (entry.isDirectory()) { walk(full); continue; }
         if (!entry.name.endsWith('.json')) continue;
         const flat: Record<string, string> = {};
@@ -163,17 +137,9 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
       }
     }
 
-    function flattenObj(obj: Record<string, unknown>, prefix: string, out: Record<string, string>): void {
-      for (const [k, v] of Object.entries(obj)) {
-        const key = prefix ? `${prefix}.${k}` : k;
-        if (typeof v === 'object' && v !== null) flattenObj(v as Record<string, unknown>, key, out);
-        else out[key] = String(v);
-      }
-    }
-
     walk(dir);
     return results;
   }
 
-  return { translate, translateObject, translateProject, translateBatch: translateBatchLocal, crossTranslate: crossTranslate };
+  return { translate, translateObject, translateProject, translateBatch: translateBatchLocal, crossTranslate };
 }

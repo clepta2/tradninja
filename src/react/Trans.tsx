@@ -1,71 +1,52 @@
 // src/react/Trans.tsx
-// Componente de tradução com parâmetros
+// Componente de tradução com parâmetros — usa contexto se disponível
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { Text, type TextProps, type StyleProp, type TextStyle } from 'react-native';
 import type { Language, TranslationKey } from '../core/types';
+import { TranslationContext } from './Provider';
 import { createTranslator } from '../core/engine';
 
+let fallbackTranslator: ReturnType<typeof createTranslator> | null = null;
+
 interface TransProps extends TextProps {
-  /** Chave de tradução (ex: 'home.greeting') */
   k: TranslationKey;
-  /** Parâmetros extras */
   params?: Record<string, string | number>;
-  /** Nome do usuário */
   name?: string;
-  /** Contador (para plural) */
   count?: number;
-  /** Nome do exercício */
   exercise?: string;
-  /** Valor numérico */
   value?: string | number;
-  /** Estilo do texto */
   style?: StyleProp<TextStyle>;
-  /** Número de linhas */
   numberOfLines?: number;
-  /** Idioma destino */
   locale?: Language;
 }
 
-const translator = createTranslator();
-
-/**
- * Componente de tradução com parâmetros.
- *
- * @example
- * ```tsx
- * <Trans k="home.greeting" name="João" />
- * <Trans k="workout.exercises" count={5} exercise="agachamento" />
- * ```
- */
 export function Trans({
-  k,
-  params,
-  name,
-  count,
-  exercise,
-  value,
-  style,
-  numberOfLines,
-  locale = 'pt',
-  ...rest
+  k, params, name, count, exercise, value,
+  style, numberOfLines, locale, ...rest,
 }: TransProps): React.JSX.Element {
-  const mergedParams: Record<string, string | number> = { ...params };
+  const merged: Record<string, string | number> = { ...params };
+  if (name !== undefined) merged.name = name;
+  if (count !== undefined) merged.count = count;
+  if (exercise !== undefined) merged.exercise = exercise;
+  if (value !== undefined) merged.value = value;
 
-  if (name !== undefined) mergedParams.name = name;
-  if (count !== undefined) mergedParams.count = count;
-  if (exercise !== undefined) mergedParams.exercise = exercise;
-  if (value !== undefined) mergedParams.value = value;
-
-  const result = translator.translate(k, {
-    source: 'pt',
-    target: locale,
-    params: mergedParams,
-  });
+  let translated: string;
+  try {
+    const ctx = useContext(TranslationContext);
+    translated = ctx?.t ? ctx.t(k, merged) : _fallback(k, locale || 'pt', merged);
+  } catch {
+    translated = _fallback(k, locale || 'pt', merged);
+  }
 
   return (
     <Text style={style} numberOfLines={numberOfLines} {...rest}>
-      {result.text}
+      {translated}
     </Text>
   );
+}
+
+function _fallback(k: string, target: Language, params: Record<string, string | number>): string {
+  if (!fallbackTranslator) fallbackTranslator = createTranslator();
+  return fallbackTranslator.translate(k, { target, params }).text;
 }

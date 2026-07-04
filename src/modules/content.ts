@@ -14,7 +14,8 @@ interface ContentOptions {
   maxLength?: number;
 }
 
-const translator = createTranslator({ cacheEnabled: true });
+let translator: ReturnType<typeof createTranslator> | null = null;
+function getTranslator() { if (!translator) translator = createTranslator({ cacheEnabled: true }); return translator; }
 
 const CONTENT_RULES: Array<{
   pattern: RegExp;
@@ -95,7 +96,7 @@ export function translateContent(
   }
 
   // Try translator engine (dictionary + patterns + rules)
-  const translated = translator.translate(text, {
+  const translated = getTranslator().translate(text, {
     source,
     target,
     fallback: options.fallback,
