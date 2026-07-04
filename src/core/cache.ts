@@ -1,5 +1,5 @@
 // src/core/cache.ts
-// Cache LRU com TTL + batch eviction + stats
+// Cache LRU com TTL + batch eviction + stats — OTIMIZADO
 
 interface CacheEntry {
   value: string;
@@ -7,79 +7,74 @@ interface CacheEntry {
   lastAccessed: number;
 }
 
-interface CacheStats {
-  hits: number;
-  misses: number;
-  hitRate: number;
-}
-
 let store = new Map<string, CacheEntry>();
 let maxSize = 5000;
 let ttlMs = 3600000;
-let stats: CacheStats = { hits: 0, misses: 0, hitRate: 0 };
+let hits = 0;
+let misses = 0;
+let now = 0; // Cache de timestamp — evita Date.now() por chamada
 
+// Hash mais rápido: djb2 + concatenação sem template literal
 function hashKey(source: string, target: string, text: string): string {
-  let h = 0;
-  const raw = `${source}:${target}:${text}`;
-  for (let i = 0; i < raw.length; i++) {
-    h = ((h << 5) - h + raw.charCodeAt(i)) | 0;
-  }
+  let h = 5381;
+  const len = source.length;
+  for (let i = 0; i < len; i++) h = ((h << 5) + h + source.charCodeAt(i)) | 0;
+  h = ((h << 5) + h + 58) | 0; // ':'
+  const tLen = target.length;
+  for (let i = 0; i < tLen; i++) h = ((h << 5) + h + target.charCodeAt(i)) | 0;
+  h = ((h << 5) + h + 58) | 0;
+  const txLen = text.length;
+  for (let i = 0; i < txLen; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
   return h.toString(36);
 }
 
-const EVICT_BATCH = 50;
-
+// EvictionLazy: só roda quando store > maxSize
 function evict(): void {
   if (store.size <= maxSize) return;
-  const now = Date.now();
+  now = Date.now();
   for (const [key, entry] of store) {
     if (entry.expiresAt <= now) store.delete(key);
   }
-  if (store.size > maxSize + EVICT_BATCH) {
+  if (store.size > maxSize + 50) {
     const entries = Array.from(store.entries())
       .sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
-    for (let i = 0; i < EVICT_BATCH && i < entries.length; i++) {
-      store.delete(entries[i][0]);
-    }
+    const toDelete = Math.min(50, entries.length);
+    for (let i = 0; i < toDelete; i++) store.delete(entries[i][0]);
   }
 }
 
 export function get(source: string, target: string, text: string): string | null {
   const key = hashKey(source, target, text);
   const entry = store.get(key);
-  if (!entry) { stats.misses++; updateHitRate(); return null; }
-  if (entry.expiresAt <= Date.now()) { store.delete(key); stats.misses++; updateHitRate(); return null; }
-  entry.lastAccessed = Date.now();
-  stats.hits++;
-  updateHitRate();
+  if (!entry) { misses++; return null; }
+  now = Date.now();
+  if (entry.expiresAt <= now) { store.delete(key); misses++; return null; }
+  entry.lastAccessed = now;
+  hits++;
   return entry.value;
 }
 
 export function set(source: string, target: string, text: string, value: string): void {
   const key = hashKey(source, target, text);
-  store.set(key, { value, expiresAt: Date.now() + ttlMs, lastAccessed: Date.now() });
+  now = Date.now();
+  store.set(key, { value, expiresAt: now + ttlMs, lastAccessed: now });
   evict();
-}
-
-function updateHitRate(): void {
-  const total = stats.hits + stats.misses;
-  stats.hitRate = total > 0 ? stats.hits / total : 0;
 }
 
 export function clear(): void {
   store.clear();
-  stats = { hits: 0, misses: 0, hitRate: 0 };
+  hits = 0;
+  misses = 0;
 }
 
-export function size(): number {
-  return store.size;
-}
+export function size(): number { return store.size; }
 
 export function configure(opts: { maxSize?: number; ttlMs?: number }): void {
   if (opts.maxSize !== undefined) maxSize = opts.maxSize;
   if (opts.ttlMs !== undefined) ttlMs = opts.ttlMs;
 }
 
-export function getStats(): CacheStats & { size: number } {
-  return { ...stats, size: store.size };
+export function getStats() {
+  const total = hits + misses;
+  return { hits, misses, hitRate: total > 0 ? hits / total : 0, size: store.size };
 }
