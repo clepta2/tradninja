@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "sideEffects": false,
-  "description": "Motor de traducao offline 100% local — PT/EN/ES com 36 modulos, zero internet",
+  "description": "Motor de traducao offline 100% local — 31 idiomas, 25k+ termos, cross-translate, zero internet",
   "main": "src/index.ts",
   "module": "src/index.ts",
   "types": "src/index.ts",
@@ -22,7 +22,8 @@
   "files": ["src/"],
   "keywords": [
     "translation", "i18n", "offline", "localization",
-    "portuguese", "english", "spanish",
+    "portuguese", "english", "spanish", "french", "german",
+    "japanese", "chinese", "korean", "arabic",
     "react", "react-native", "expo"
   ],
   "author": "clepta2",

@@ -3,7 +3,7 @@
 
 import type { Language, TranslateOptions, TranslationResult, ModuleConfig, TranslationKey } from './types';
 import { DEFAULT_CONFIG } from './types';
-import { lookupByKey, lookupByText, translateBatch, crossTranslate } from './dictionary';
+import { lookupByKey, lookupByText, translateBatch, crossTranslate, initDictionary } from './dictionary';
 import { applyRules } from './rules';
 import { PATTERNS } from './patterns';
 import * as Cache from './cache';
@@ -62,6 +62,9 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
   if (cfg.cacheEnabled) {
     Cache.configure({ maxSize: cfg.cacheMaxSize, ttlMs: cfg.cacheTtlMs });
   }
+
+  // Pré-carrega dicionário do idioma alvo
+  initDictionary(cfg.defaultTarget).catch(() => {});
 
   function tryPattern(text: string, target: Language): string | null {
     const normalized = text.trim().toLowerCase();

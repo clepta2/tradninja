@@ -61,13 +61,11 @@ export interface ModuleConfig {
 
 /** Template de padrão de tradução */
 export interface PatternTemplate {
-  /** Texto PT */
   pt: string;
-  /** Texto EN */
   en: string;
-  /** Texto ES */
   es: string;
-  /** Parâmetros do template */
+  fr?: string;
+  de?: string;
   params: string[];
 }
 

@@ -1,0 +1,35 @@
+// src/core/patterns-data.ts
+// Templates de tradução com interpolação — PT/EN/ES/FR/DE
+import type { PatternTemplate } from './types';
+
+export const PATTERNS: Record<string, PatternTemplate> = {
+  greeting: { pt: 'Olá, {name}!', en: 'Hello, {name}!', es: 'Hola, {name}!', fr: 'Bonjour, {name}!', de: 'Hallo, {name}!', params: ['name'] },
+  welcome: { pt: 'Bem-vindo ao {app}!', en: 'Welcome to {app}!', es: '¡Bienvenido a {app}!', fr: 'Bienvenue sur {app}!', de: 'Willkommen bei {app}!', params: ['app'] },
+  confirmDelete: { pt: 'Tem certeza que deseja excluir {item}?', en: 'Are you sure you want to delete {item}?', es: '¿Estás seguro de que deseas eliminar {item}?', fr: 'Êtes-vous sûr de vouloir supprimer {item}?', de: 'Möchten Sie {item} wirklich löschen?', params: ['item'] },
+  confirmAction: { pt: 'Confirmar {action}?', en: 'Confirm {action}?', es: '¿Confirmar {action}?', fr: 'Confirmer {action}?', de: '{action} bestätigen?', params: ['action'] },
+  savingProgress: { pt: 'Salvando progresso...', en: 'Saving progress...', es: 'Guardando progreso...', fr: 'Enregistrement...', de: 'Fortschritt gespeichert...', params: [] },
+  errorOccurred: { pt: 'Ocorreu um erro: {message}', en: 'An error occurred: {message}', es: 'Ocurrió un error: {message}', fr: 'Une erreur est survenue: {message}', de: 'Ein Fehler ist aufgetreten: {message}', params: ['message'] },
+  networkError: { pt: 'Erro de conexão. Verifique sua internet.', en: 'Connection error. Check your internet.', es: 'Error de conexión. Verifica tu internet.', fr: 'Erreur de connexion. Vérifiez votre internet.', de: 'Verbindungsfehler. Überprüfen Sie Ihr Internet.', params: [] },
+  sessionExpired: { pt: 'Sessão expirada. Faça login novamente.', en: 'Session expired. Please log in again.', es: 'Sesión expirada. Inicia sesión de nuevo.', fr: 'Session expirée. Veuillez vous reconnecter.', de: 'Sitzung abgelaufen. Bitte erneut anmelden.', params: [] },
+  workoutCompleted: { pt: 'Treino concluído! Excelente trabalho!', en: 'Workout completed! Great work!', es: '¡Entrenamiento completado! ¡Excelente trabajo!', fr: 'Entraînement terminé ! Excellent travail !', de: 'Training abgeschlossen! Großartige Arbeit!', params: [] },
+  caloriesBurned: { pt: '{calories} kcal queimadas', en: '{calories} kcal burned', es: '{calories} kcal quemadas', fr: '{calories} kcal brûlées', de: '{calories} kcal verbrannt', params: ['calories'] },
+  setsCompleted: { pt: '{count} séries concluídas', en: '{count} sets completed', es: '{count} series completadas', fr: '{count} séries terminées', de: '{count} Sätze abgeschlossen', params: ['count'] },
+  restTimer: { pt: '{seconds}s de descanso', en: '{seconds}s rest', es: '{seconds}s descanso', fr: '{seconds}s repos', de: '{seconds}s Pause', params: ['seconds'] },
+  levelUp: { pt: 'Parabéns! Você subiu para o nível {level}!', en: 'Congratulations! You reached level {level}!', es: '¡Felicitaciones! ¡Subiste al nivel {level}!', fr: 'Félicitations ! Vous avez atteint le niveau {level} !', de: 'Herzlichen Glückwunsch! Sie haben Stufe {level} erreicht!', params: ['level'] },
+  achievementUnlocked: { pt: 'Conquista desbloqueada: {name}!', en: 'Achievement unlocked: {name}!', es: '¡Logro desbloqueado: {name}!', fr: 'Succès débloqué: {name} !', de: 'Erfolg freigeschaltet: {name}!', params: ['name'] },
+  streakMessage: { pt: 'Você está com {days} dias seguidos!', en: 'You have a {days} day streak!', es: '¡Tienes una racha de {days} días!', fr: 'Vous avez une série de {days} jours !', de: 'Du hast eine {days} Tage Serie!', params: ['days'] },
+  xpEarned: { pt: '+{xp} XP ganho!', en: '+{xp} XP earned!', es: '¡+{xp} XP ganado!', fr: '+{xp} XP gagnés !', de: '+{xp} XP verdient!', params: ['xp'] },
+  daysRemaining: { pt: '{days} dias restantes', en: '{days} days remaining', es: '{days} días restantes', fr: '{days} jours restants', de: '{days} Tage verbleibend', params: ['days'] },
+  minutesRemaining: { pt: '{minutes} minutos restantes', en: '{minutes} minutes remaining', es: '{minutes} minutos restantes', fr: '{minutes} minutes restantes', de: '{minutes} Minuten verbleibend', params: ['minutes'] },
+  paymentSuccess: { pt: 'Pagamento realizado com sucesso!', en: 'Payment completed successfully!', es: '¡Pago realizado con éxito!', fr: 'Paiement effectué avec succès !', de: 'Zahlung erfolgreich abgeschlossen!', params: [] },
+  subscriptionExpiring: { pt: 'Sua assinatura expira em {days} dias', en: 'Your subscription expires in {days} days', es: 'Tu suscripción expira en {days} días', fr: 'Votre abonnement expire dans {days} jours', de: 'Ihr Abonnement läuft in {days} Tagen ab', params: ['days'] },
+  waterLogged: { pt: '{ml}ml de água registrados!', en: '{ml}ml of water logged!', es: '¡{ml}ml de agua registrados!', fr: '{ml}ml d\'eau enregistrés !', de: '{ml}ml Wasser erfasst!', params: ['ml'] },
+  mealLogged: { pt: '{meal} registrada com sucesso!', en: '{meal} logged successfully!', es: '¡{meal} registrada con éxito!', fr: '{meal} enregistré avec succès !', de: '{meal} erfolgreich erfasst!', params: ['meal'] },
+  shareWorkout: { pt: 'Treinei com {app}! {name} - {duration}min', en: 'I trained with {app}! {name} - {duration}min', es: '¡Entrené con {app}! {name} - {duration}min', fr: 'J\'ai entraîné avec {app}! {name} - {duration}min', de: 'Trainiert mit {app}! {name} - {duration}min', params: ['app', 'name', 'duration'] },
+  friendChallenge: { pt: '{name} te desafiou para um treino!', en: '{name} challenged you to a workout!', es: '¡{name} te desafió a un entrenamiento!', fr: '{name} vous a défié pour un entraînement !', de: '{name} hat Sie zu einem Training herausgefordert!', params: ['name'] },
+  permissionDenied: { pt: 'Permissão negada. Conceda acesso nas configurações.', en: 'Permission denied. Grant access in settings.', es: 'Permiso denegado. Concede acceso en configuración.', fr: 'Permission refusée. Autorisez l\'accès dans les paramètres.', de: 'Berechtigung verweigert. Zugriff in den Einstellungen erteilen.', params: [] },
+  offlineMode: { pt: 'Modo offline. Dados em cache.', en: 'Offline mode. Cached data.', es: 'Modo offline. Datos en caché.', fr: 'Mode hors ligne. Données en cache.', de: 'Offline-Modus. Zwischengespeicherte Daten.', params: [] },
+  syncComplete: { pt: 'Sincronização concluída!', en: 'Sync complete!', es: '¡Sincronización completada!', fr: 'Synchronisation terminée !', de: 'Synchronisierung abgeschlossen!', params: [] },
+  workoutReminder: { pt: 'Hora de treinar! Não perca seu streak!', en: "Time to work out! Don't break your streak!", es: '¡Hora de entrenar! ¡No pierdas tu racha!', fr: 'C\'est l\'heure de l\'entraînement ! Ne cassez pas votre série !', de: 'Zeit zum Trainieren! Brich nicht deine Serie!', params: [] },
+  checkinSuccess: { pt: 'Check-in realizado! Bem-vindo!', en: 'Check-in complete! Welcome!', es: '¡Check-in realizado! ¡Bienvenido!', fr: 'Check-in effectué ! Bienvenue !', de: 'Check-in abgeschlossen! Willkommen!', params: [] },
+};

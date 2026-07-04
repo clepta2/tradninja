@@ -1,5 +1,5 @@
 // src/core/dictionary.ts
-// Dicionário TradNinja — lazy loading, índices, batching, helpers
+// Dicionário TradNinja — lazy loading, batch, cross-translate
 
 import ptData from '../i18n/pt.json';
 import type { Language } from './types';
@@ -9,15 +9,11 @@ type LangMap = Record<string, string>;
 const LOADED_LANGUAGES = new Map<string, LangMap>();
 const DICTIONARY = new Map<string, Record<string, string>>();
 const LOOKUP_BY_TEXT = new Map<string, Record<string, string>>();
-
-async function loadLanguage(lang: string): Promise<LangMap> {
-  if (LOADED_LANGUAGES.has(lang)) return LOADED_LANGUAGES.get(lang)!;
-  let data: Record<string, unknown>;
-  try { data = await import(`../i18n/${lang}.json`); } catch { return {}; }
-  const flat = flattenJson(data as Record<string, unknown>);
-  LOADED_LANGUAGES.set(lang, flat);
-  return flat;
-}
+const ALL_LANGUAGES: Language[] = [
+  'pt', 'en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'zh', 'ar', 'ru', 'hi',
+  'nl', 'pl', 'sv', 'da', 'no', 'fi', 'cs', 'el', 'hu', 'ro', 'uk', 'id',
+  'ms', 'th', 'tr', 'he', 'bn', 'sw',
+];
 
 function flattenJson(obj: Record<string, unknown>, prefix = ''): LangMap {
   const result: LangMap = {};
@@ -29,10 +25,20 @@ function flattenJson(obj: Record<string, unknown>, prefix = ''): LangMap {
   return result;
 }
 
-let built = false;
+async function loadLanguage(lang: string): Promise<LangMap> {
+  if (LOADED_LANGUAGES.has(lang)) return LOADED_LANGUAGES.get(lang)!;
+  try {
+    const data = await import(`../i18n/${lang}.json`);
+    const flat = flattenJson(data as Record<string, unknown>);
+    LOADED_LANGUAGES.set(lang, flat);
+    return flat;
+  } catch {
+    return {};
+  }
+}
 
-async function buildDictionary(target: Language): Promise<void> {
-  if (built && DICTIONARY.size > 0) return;
+/** Pré-carrega PT + idioma alvo. Chamar antes do primeiro lookup. */
+export async function initDictionary(target: Language): Promise<void> {
   const ptFlat = flattenJson(ptData as Record<string, unknown>);
   const targetFlat = await loadLanguage(target);
 
@@ -58,41 +64,60 @@ async function buildDictionary(target: Language): Promise<void> {
       LOOKUP_BY_TEXT.set(pt, entry);
     }
   }
-  built = true;
+}
+
+/** Lazy init síncrono (carrega PT se ainda não carregou) */
+function ensureBuilt(target: Language): void {
+  if (DICTIONARY.size > 0) return;
+  const ptFlat = flattenJson(ptData as Record<string, unknown>);
+  for (const [key, ptVal] of Object.entries(ptFlat)) {
+    if (ptVal && typeof ptVal === 'string' && ptVal.trim()) {
+      const entry: Record<string, string> = { pt: ptVal };
+      DICTIONARY.set(key, entry);
+      if (!DICTIONARY.has(ptVal)) DICTIONARY.set(ptVal, entry);
+      LOOKUP_BY_TEXT.set(ptVal, entry);
+    }
+  }
+  // Carrega target async — se não carregou ainda, retorna null no lookup
+  loadLanguage(target).then((targetFlat) => {
+    for (const [key, entry] of DICTIONARY) {
+      if (!entry[target] && targetFlat[entry.pt]) {
+        entry[target] = targetFlat[entry.pt];
+      }
+    }
+  });
 }
 
 export function lookupByText(text: string, target: Language): string | null {
-  buildDictionary(target);
+  ensureBuilt(target);
   const entry = LOOKUP_BY_TEXT.get(text);
-  return entry ? entry[target] || null : null;
+  return entry?.[target] || null;
 }
 
 export function lookupByKey(key: string, target: Language): string | null {
-  buildDictionary(target);
+  ensureBuilt(target);
   const entry = DICTIONARY.get(key);
-  return entry ? entry[target] || null : null;
+  return entry?.[target] || null;
 }
 
 export function hasTranslation(text: string, target: Language): boolean {
-  buildDictionary(target);
-  return LOOKUP_BY_TEXT.has(text);
+  ensureBuilt(target);
+  const entry = LOOKUP_BY_TEXT.get(text);
+  return !!(entry && entry[target]);
 }
 
-export function getTranslations(text: string, target: Language): Record<string, string> | null {
-  buildDictionary(target);
+export function getTranslations(text: string): Record<string, string> | null {
   const entry = LOOKUP_BY_TEXT.get(text);
   if (!entry) return null;
   return Object.fromEntries(Object.entries(entry).filter(([, v]) => v));
 }
 
-/**
- * Cross-translate: traduz de um idioma para outro via pivô.
- * Suporta qualquer par de idiomas — se não tem dicionário direto,
- * usa um pivô intermediário (padrão: 'en').
- *
- * @example PT → EN → JA (usa EN como intermediário)
- * @example DE → EN → PT (usa EN como intermediário)
- */
+export function getAvailableLanguages(text: string): Language[] {
+  const entry = LOOKUP_BY_TEXT.get(text);
+  if (!entry) return [];
+  return ALL_LANGUAGES.filter(lang => entry[lang]);
+}
+
 export async function crossTranslate(
   text: string,
   source: Language,
@@ -101,11 +126,10 @@ export async function crossTranslate(
 ): Promise<string> {
   if (source === target) return text;
 
-  // Busca direta
   const direct = lookupByText(text, target);
   if (direct) return direct;
 
-  // Cross-translate via pivô
+  // Tenta pivô principal
   if (pivot !== source && pivot !== target) {
     const viaPivot = lookupByText(text, pivot);
     if (viaPivot) {
@@ -114,9 +138,8 @@ export async function crossTranslate(
     }
   }
 
-  // Tenta outros pivôs automaticamente
-  const allPivots: Language[] = ['en', 'pt', 'es', 'fr', 'de'];
-  for (const altPivot of allPivots) {
+  // Tenta todos os outros pivôs carregados
+  for (const altPivot of ALL_LANGUAGES) {
     if (altPivot !== source && altPivot !== target && altPivot !== pivot) {
       const viaAlt = lookupByText(text, altPivot);
       if (viaAlt) {
@@ -129,34 +152,34 @@ export async function crossTranslate(
   return text;
 }
 
-/**
- * Retorna todos os idiomas disponíveis para um texto.
- */
-export function getAvailableLanguages(text: string): Language[] {
-  const langs: Language[] = [];
-  const allLangs: Language[] = ['pt', 'en', 'es', 'fr', 'de', 'it', 'ja', 'ko', 'zh', 'ar', 'ru', 'hi', 'nl', 'pl', 'sv', 'da', 'no', 'fi', 'cs', 'el', 'hu', 'ro', 'uk', 'id', 'ms', 'th', 'tr', 'he', 'bn', 'sw'];
-  for (const lang of allLangs) { const entry = LOOKUP_BY_TEXT.get(text); if (entry && entry[lang]) langs.push(lang); }
-  return langs;
-}
-
 export function dictionarySize(): number { return DICTIONARY.size; }
 export function loadedLanguages(): string[] { return Array.from(LOADED_LANGUAGES.keys()); }
-export function clearLanguageCache(): void { LOADED_LANGUAGES.clear(); built = false; }
+export function clearLanguageCache(): void { LOADED_LANGUAGES.clear(); DICTIONARY.clear(); LOOKUP_BY_TEXT.clear(); }
 export function getDictionaryStats() {
-  return { totalTerms: DICTIONARY.size, loadedLanguages: Array.from(LOADED_LANGUAGES.keys()), cachedTranslations: LOOKUP_BY_TEXT.size };
+  return {
+    totalTerms: DICTIONARY.size,
+    loadedLanguages: Array.from(LOADED_LANGUAGES.keys()),
+    cachedTranslations: LOOKUP_BY_TEXT.size,
+    supportedLanguages: ALL_LANGUAGES,
+  };
 }
 
+// ── Batch translate ─────────────────────────────────────────
 const TRANSLATION_BUFFER: Array<{ text: string; target: Language; resolve: (v: string) => void }> = [];
 let bufferTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function translateBatch(texts: string[], target: Language): Promise<string[]> {
+  ensureBuilt(target);
   return new Promise((resolve) => {
-    buildDictionary(target);
     const results: string[] = new Array(texts.length);
     let pending = texts.length;
     texts.forEach((text, i) => {
-      TRANSLATION_BUFFER.push({ text, target, resolve: (v) => { results[i] = v; pending--; if (pending === 0) resolve(results); } });
+      // Tenta cache/dicionário direto primeiro
+      const entry = LOOKUP_BY_TEXT.get(text);
+      if (entry?.[target]) { results[i] = entry[target]; pending--; }
+      else { TRANSLATION_BUFFER.push({ text, target, resolve: (v) => { results[i] = v; pending--; if (pending === 0) resolve(results); } }); }
     });
+    if (pending === 0) { resolve(results); return; }
     if (!bufferTimer) bufferTimer = setTimeout(processBuffer, 16);
   });
 }
@@ -164,5 +187,7 @@ export function translateBatch(texts: string[], target: Language): Promise<strin
 function processBuffer(): void {
   bufferTimer = null;
   const batch = [...TRANSLATION_BUFFER]; TRANSLATION_BUFFER.length = 0;
-  for (const item of batch) { const entry = LOOKUP_BY_TEXT.get(item.text); item.resolve(entry ? entry[item.target] || item.text : item.text); }
+  for (const item of batch) { const entry = LOOKUP_BY_TEXT.get(item.text); item.resolve(entry?.[item.target] || item.text); }
 }
+
+export { ALL_LANGUAGES };
