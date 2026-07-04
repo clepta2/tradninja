@@ -20,6 +20,10 @@ export { GRAMMAR_RULES, applyRules, formatNumber, formatCurrency, getGenderMap }
 export { PATTERNS, interpolatePattern, getPattern } from './core/patterns';
 export * as Cache from './core/cache';
 export { createTranslator } from './core/engine';
+export {
+  loadLanguageCached, preloadLanguage, preloadLanguages,
+  clearAllCache, getCacheStats, setCacheBackend,
+} from './core/loader';
 
 // ── Modules ───────────────────────────────────────────────────────
 export { scanForStrings, generateTranslations } from './modules/ui';

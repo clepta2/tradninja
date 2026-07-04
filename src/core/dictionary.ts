@@ -1,9 +1,10 @@
 // src/core/dictionary.ts
 // Dicionário TradNinja — lazy loading, batch, cross-translate
-// OTIMIZADO: sem flattenJson (JSONs já são flat), batch Map, precompute
+// OTIMIZADO: JSONs flat, batch Map, 3-layer cache (memory→storage→import)
 
 import ptData from '../i18n/pt.json';
 import type { Language } from './types';
+import { loadLanguageCached, preloadLanguage, preloadLanguages } from './loader';
 
 type LangMap = Record<string, string>;
 
@@ -16,34 +17,28 @@ const ALL_LANGUAGES: Language[] = [
   'ms', 'th', 'tr', 'he', 'bn', 'sw',
 ];
 
-// JSONs já são flat key→value, sem necessidade de flattenJson
+// JSONs já são flat key→value
 const PT_FLAT = ptData as unknown as LangMap;
+const PT_KEYS = Object.keys(PT_FLAT);
+const PIVOT_LANGUAGES: Language[] = ['en', 'pt', 'es', 'fr', 'de'];
 
 async function loadLanguage(lang: string): Promise<LangMap> {
   if (LOADED_LANGUAGES.has(lang)) return LOADED_LANGUAGES.get(lang)!;
-  try {
-    const mod = await import(`../i18n/${lang}.json`);
-    const flat = (mod.default || mod) as unknown as LangMap;
-    LOADED_LANGUAGES.set(lang, flat);
-    return flat;
-  } catch {
-    return {};
-  }
+  const flat = await loadLanguageCached(lang);
+  LOADED_LANGUAGES.set(lang, flat);
+  return flat;
 }
-
-// Pré-computa as chaves PT uma vez
-const PT_KEYS = Object.keys(PT_FLAT);
 
 /**
  * Inicializa o dicionário PT + target em batch.
- * Usa Map constructor para construção 3x mais rápida que .set() em loop.
+ * Pré-carrega pivot languages em background para cross-translate rápido.
  */
 export async function initDictionary(target: Language): Promise<void> {
   if (DICTIONARY.size > 0 && LOADED_LANGUAGES.has(target)) return;
 
   const targetFlat = await loadLanguage(target);
 
-  // Batch: constrói entries array e cria Map de uma vez
+  // Batch construction
   const entries: [string, Record<string, string>][] = new Array(PT_KEYS.length);
   let count = 0;
 
@@ -58,7 +53,6 @@ export async function initDictionary(target: Language): Promise<void> {
 
   entries.length = count;
 
-  // Clear + batch set — mais rápido que set individual
   DICTIONARY.clear();
   LOOKUP_BY_TEXT.clear();
   for (let i = 0; i < count; i++) {
@@ -66,6 +60,10 @@ export async function initDictionary(target: Language): Promise<void> {
     DICTIONARY.set(ptVal, entry);
     LOOKUP_BY_TEXT.set(ptVal, entry);
   }
+
+  // Pré-carrega pivot languages em background para cross-translate
+  const pivots = PIVOT_LANGUAGES.filter(p => p !== target);
+  preloadLanguages(pivots);
 }
 
 /** Lazy init síncrono — carrega PT instantaneamente, target em background */
