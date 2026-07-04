@@ -12,13 +12,14 @@ import { resolveICU, hasICUMessages } from '../modules/icu';
 // ── Regex pré-compilado ────────────────────────────────────
 const INTERPOLATE_REGEX = /\{(\w+)\}/g;
 
-// ── Patterns pré-computados ────────────────────────────────
-const PRECOMPUTED_PATTERNS = Object.entries(PATTERNS).map(([key, pattern]) => ({
-  key,
-  ptLower: pattern.pt.toLowerCase(),
-  ptOriginal: pattern.pt,
-  translations: pattern as Record<string, string>,
-}));
+// ── Patterns pré-computados em Map para O(1) ────────────────
+const PATTERN_BY_PT = new Map<string, Record<string, string>>();
+for (const [key, pattern] of Object.entries(PATTERNS)) {
+  PATTERN_BY_PT.set(pattern.pt.toLowerCase(), pattern as Record<string, string>);
+  if (pattern.pt !== pattern.pt.toLowerCase()) {
+    PATTERN_BY_PT.set(pattern.pt, pattern as Record<string, string>);
+  }
+}
 
 // ── Interpolação reutilizável ──────────────────────────────
 function interpolateParams(text: string, params?: Record<string, string | number>): string {
@@ -68,12 +69,7 @@ export function createTranslator(config?: Partial<ModuleConfig>): Translator {
 
   function tryPattern(text: string, target: Language): string | null {
     const normalized = text.trim().toLowerCase();
-    for (const pattern of PRECOMPUTED_PATTERNS) {
-      if (normalized === pattern.ptLower || text === pattern.ptOriginal) {
-        return pattern.translations[target];
-      }
-    }
-    return null;
+    return PATTERN_BY_PT.get(normalized)?.[target] || PATTERN_BY_PT.get(text)?.[target] || null;
   }
 
   function translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult {

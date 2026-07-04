@@ -109,7 +109,7 @@ export function setCacheBackend(backend: CacheBackend): void {
 // ── Carregamento com cache ──────────────────────────────────
 const MEMORY_CACHE = new Map<string, LangMap>();
 const LOADING_PROMISES = new Map<string, Promise<LangMap>>();
-const CACHE_PREFIX = 'tn_dict_v2_';
+const CACHE_PREFIX = 'tn_dict_v3_'; // v3: batch Map + version bump
 
 /**
  * Carrega dicionário com cache em 3 camadas:
@@ -205,12 +205,19 @@ export async function clearAllCache(): Promise<void> {
   MEMORY_CACHE.clear();
   LOADING_PROMISES.clear();
   const backend = getBackend();
-  // Limpa apenas chaves do tradninja
   try {
     if (backend instanceof AsyncStorageAdapter) {
       const keys = await backend.storage.getAllKeys();
       const tnKeys = keys.filter((k: string) => k.startsWith(CACHE_PREFIX));
       if (tnKeys.length > 0) await backend.storage.multiRemove(tnKeys);
+    } else if (backend instanceof IndexedDBAdapter) {
+      const db = await backend.dbPromise;
+      await new Promise<void>((resolve) => {
+        const tx = db.transaction('dicts', 'readwrite');
+        tx.objectStore('dicts').clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
     }
   } catch {}
 }
