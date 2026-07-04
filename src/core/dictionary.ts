@@ -7,8 +7,8 @@ import type { Language } from './types';
 type LangMap = Record<string, string>;
 
 const LOADED_LANGUAGES = new Map<string, LangMap>();
-const DICTIONARY = new Map<string, { pt: string; en?: string; es?: string }>();
-const LOOKUP_BY_TEXT = new Map<string, { pt: string; en?: string; es?: string }>();
+const DICTIONARY = new Map<string, Record<string, string>>();
+const LOOKUP_BY_TEXT = new Map<string, Record<string, string>>();
 
 async function loadLanguage(lang: string): Promise<LangMap> {
   if (LOADED_LANGUAGES.has(lang)) return LOADED_LANGUAGES.get(lang)!;
@@ -49,7 +49,8 @@ async function buildDictionary(target: Language): Promise<void> {
 
   for (const [key, ptVal] of Object.entries(ptFlat)) {
     if (ptVal && typeof ptVal === 'string' && ptVal.trim()) {
-      const entry = { pt: ptVal, en: targetFlat[key], es: targetFlat[key] };
+      const entry: Record<string, string> = { pt: ptVal };
+      entry[target] = targetFlat[key] || ptVal;
       DICTIONARY.set(key, entry);
       if (!DICTIONARY.has(ptVal)) DICTIONARY.set(ptVal, entry);
       LOOKUP_BY_TEXT.set(ptVal, entry);
@@ -81,6 +82,28 @@ export function lookupByText(text: string, target: Language): string | null {
   buildDictionary(target);
   const entry = LOOKUP_BY_TEXT.get(text);
   return entry ? entry[target] || null : null;
+}
+
+export function lookupByKey(key: string, target: Language): string | null {
+  buildDictionary(target);
+  const entry = DICTIONARY.get(key);
+  return entry ? entry[target] || null : null;
+}
+
+export function hasTranslation(text: string, target: Language): boolean {
+  buildDictionary(target);
+  return LOOKUP_BY_TEXT.has(text);
+}
+
+export function getTranslations(text: string, target: Language): Record<string, string> | null {
+  buildDictionary(target);
+  const entry = LOOKUP_BY_TEXT.get(text);
+  if (!entry) return null;
+  const result: Record<string, string> = {};
+  for (const [lang, val] of Object.entries(entry)) {
+    result[lang] = val || '';
+  }
+  return result;
 }
 
 /**

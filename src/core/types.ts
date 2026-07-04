@@ -1,8 +1,13 @@
 // src/core/types.ts
 // Tipos TypeScript para o TradNinja
 
-/** Idiomas suportados */
-export type Language = 'pt' | 'en' | 'es' | 'fr';
+/** Idiomas suportados — 31 idiomas com dicionários completos */
+export type Language =
+  | 'pt' | 'en' | 'es' | 'fr' | 'de' | 'it'
+  | 'ja' | 'ko' | 'zh' | 'ar' | 'ru' | 'hi'
+  | 'nl' | 'pl' | 'sv' | 'da' | 'no' | 'fi'
+  | 'cs' | 'el' | 'hu' | 'ro' | 'uk' | 'id'
+  | 'ms' | 'th' | 'tr' | 'he' | 'bn' | 'sw';
 
 /** Entrada do dicionário (PT → todos os idiomas) */
 export interface DictionaryEntry {
