@@ -1,12 +1,10 @@
+// src/core/rules.ts
+// Regras gramaticais com regex pré-compilados
+
 import type { GrammarRule, Language } from './types';
 
-interface ArticleRule {
-  pt: RegExp;
-  en: string;
-  es: string;
-}
-
-const ARTICLES_PT_EN: ArticleRule[] = [
+// ── Artigos PT→EN/ES ──────────────────────────────────────
+const ARTICLES_PT_EN = [
   { pt: /\bo\b/gi, en: 'the', es: 'el' },
   { pt: /\ba\b/gi, en: 'the', es: 'la' },
   { pt: /\bum\b/gi, en: 'a', es: 'un' },
@@ -17,143 +15,92 @@ const ARTICLES_PT_EN: ArticleRule[] = [
   { pt: /\bumas\b/gi, en: 'some', es: 'unas' },
 ];
 
-const POSSESSIVES: Record<string, Partial<Record<Language, string>>> = {
-  meu: { pt: 'meu', en: 'my', es: 'mi' },
-  minha: { pt: 'minha', en: 'my', es: 'mi' },
-  teu: { pt: 'teu', en: 'your', es: 'tu' },
-  tua: { pt: 'tua', en: 'your', es: 'tu' },
-  seu: { pt: 'seu', en: 'your', es: 'su' },
-  sua: { pt: 'sua', en: 'your', es: 'su' },
-  nosso: { pt: 'nosso', en: 'our', es: 'nuestro' },
-  nossa: { pt: 'nossa', en: 'our', es: 'nuestra' },
-  deles: { pt: 'deles', en: 'their', es: 'su' },
-  delas: { pt: 'delas', en: 'their', es: 'su' },
+// ── Possessivos ────────────────────────────────────────────
+const POSSESSIVES: Record<string, { en: string; es: string }> = {
+  meu: { en: 'my', es: 'mi' }, minha: { en: 'my', es: 'mi' },
+  teu: { en: 'your', es: 'tu' }, tua: { en: 'your', es: 'tu' },
+  seu: { en: 'your', es: 'su' }, sua: { en: 'your', es: 'su' },
+  nosso: { en: 'our', es: 'nuestro' }, nossa: { en: 'our', es: 'nuestra' },
+  deles: { en: 'their', es: 'su' }, delas: { en: 'their', es: 'su' },
 };
 
-const NEGATION: Record<string, Partial<Record<Language, string>>> = {
-  nenhum: { pt: 'nenhum', en: 'no', es: 'ningún' },
-  nenhuma: { pt: 'nenhuma', en: 'no', es: 'ninguna' },
-  ningueem: { pt: 'ninguém', en: 'nobody', es: 'nadie' },
-  nada: { pt: 'nada', en: 'nothing', es: 'nada' },
-  nunca: { pt: 'nunca', en: 'never', es: 'nunca' },
-  nem: { pt: 'nem', en: 'neither', es: 'ni' },
+// ── Negação ────────────────────────────────────────────────
+const NEGATION: Record<string, { en: string; es: string }> = {
+  nenhum: { en: 'no', es: 'ningún' }, nenhuma: { en: 'no', es: 'ninguna' },
+  ningueem: { en: 'nobody', es: 'nadie' }, nada: { en: 'nothing', es: 'nada' },
+  nunca: { en: 'never', es: 'nunca' }, nem: { en: 'neither', es: 'ni' },
 };
 
-const GERUND_MAP: Record<string, string> = {
-  ando: 'ing',
-  endo: 'ing',
-  indo: 'ing',
-  ondo: 'ing',
-  undo: 'ing',
-};
+// ── RegExp pré-compilados (uma vez no init) ─────────────────
+const POSSESSIVE_EN = Object.entries(POSSESSIVES).map(([pt, m]) => ({
+  regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: m.en,
+}));
+const POSSESSIVE_ES = Object.entries(POSSESSIVES).map(([pt, m]) => ({
+  regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: m.es,
+}));
+const NEGATION_EN = Object.entries(NEGATION).map(([pt, m]) => ({
+  regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: m.en,
+}));
+const NEGATION_ES = Object.entries(NEGATION).map(([pt, m]) => ({
+  regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: m.es,
+}));
 
-const NUMBER_FORMATS: Record<Language, {
-  decimal: string;
-  thousands: string;
-  currency: string;
-}> = {
-  pt: { decimal: ',', thousands: '.', currency: 'R$ ' },
-  en: { decimal: '.', thousands: ',', currency: '$' },
-  es: { decimal: ',', thousands: '.', currency: '$' },
-  fr: { decimal: ',', thousands: ' ', currency: '€' },
-};
-
+// ── Regras de gramática (pré-compiladas) ───────────────────
 export const GRAMMAR_RULES: GrammarRule[] = [
   ...ARTICLES_PT_EN.map((a, i) => ({
-    id: `article-${i}`,
-    source: 'pt' as Language,
-    target: 'en' as Language,
-    match: a.pt,
-    replace: () => a.en,
-    description: `PT article → EN ${a.en}`,
+    id: `article-${i}`, source: 'pt' as Language, target: 'en' as Language,
+    match: a.pt, replace: () => a.en, description: `PT article → EN ${a.en}`,
   })),
   ...ARTICLES_PT_EN.map((a, i) => ({
-    id: `article-es-${i}`,
-    source: 'pt' as Language,
-    target: 'es' as Language,
-    match: a.pt,
-    replace: () => a.es,
-    description: `PT article → ES ${a.es}`,
+    id: `article-es-${i}`, source: 'pt' as Language, target: 'es' as Language,
+    match: a.pt, replace: () => a.es, description: `PT article → ES ${a.es}`,
   })),
 ];
 
-export function applyRules(
-  text: string,
-  source: Language,
-  target: Language
-): string {
-  let result = text;
-
+// ── Aplicação de regras (regex pré-compilados) ──────────────
+export function applyRules(text: string, source: Language, target: Language): string {
   if (source === 'pt' && target === 'en') {
-    for (const [pt, mapping] of Object.entries(POSSESSIVES)) {
-      result = result.replace(
-        new RegExp(`\\b${pt}\\b`, 'gi'),
-        mapping.en
-      );
-    }
-    for (const [pt, mapping] of Object.entries(NEGATION)) {
-      result = result.replace(
-        new RegExp(`\\b${pt}\\b`, 'gi'),
-        mapping.en
-      );
-    }
+    let r = text;
+    for (const { regex, replacement } of POSSESSIVE_EN) r = r.replace(regex, replacement);
+    for (const { regex, replacement } of NEGATION_EN) r = r.replace(regex, replacement);
+    return r;
   }
-
   if (source === 'pt' && target === 'es') {
-    for (const [pt, mapping] of Object.entries(POSSESSIVES)) {
-      result = result.replace(
-        new RegExp(`\\b${pt}\\b`, 'gi'),
-        mapping.es
-      );
-    }
-    for (const [pt, mapping] of Object.entries(NEGATION)) {
-      result = result.replace(
-        new RegExp(`\\b${pt}\\b`, 'gi'),
-        mapping.es
-      );
-    }
+    let r = text;
+    for (const { regex, replacement } of POSSESSIVE_ES) r = r.replace(regex, replacement);
+    for (const { regex, replacement } of NEGATION_ES) r = r.replace(regex, replacement);
+    return r;
   }
-
-  return result;
+  return text;
 }
 
-export function formatNumber(
-  value: number,
-  target: Language,
-  decimals = 0
-): string {
+// ── Formatação de números ──────────────────────────────────
+const NUMBER_FORMATS = {
+  pt: { decimal: ',', thousands: '.', currency: 'R$ ' },
+  en: { decimal: '.', thousands: ',', currency: '$' },
+  es: { decimal: ',', thousands: '.', currency: '$' },
+} as const;
+
+export function formatNumber(value: number, target: Language, decimals = 0): string {
   const fmt = NUMBER_FORMATS[target];
   const parts = value.toFixed(decimals).split('.');
-  const intPart = parts[0].replace(
-    /\B(?=(\d{3})+(?!\d))/g,
-    fmt.thousands
-  );
-  const decPart = parts[1];
-  return decPart
-    ? intPart + fmt.decimal + decPart
-    : intPart;
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, fmt.thousands);
+  return parts[1] ? intPart + fmt.decimal + parts[1] : intPart;
 }
 
-export function formatCurrency(
-  value: number,
-  target: Language,
-  decimals = 2
-): string {
-  const fmt = NUMBER_FORMATS[target];
-  return fmt.currency + formatNumber(value, target, decimals);
+export function formatCurrency(value: number, target: Language, decimals = 2): string {
+  return NUMBER_FORMATS[target].currency + formatNumber(value, target, decimals);
 }
+
+// ── Mapa de gêneros (memoizado) ────────────────────────────
+const GENDER_MAP: Record<string, Record<Language, string>> = {
+  masculino: { pt: 'masculino', en: 'male', es: 'masculino' },
+  feminino: { pt: 'feminino', en: 'female', es: 'femenino' },
+  forte: { pt: 'forte', en: 'strong', es: 'fuerte' },
+  bom: { pt: 'bom', en: 'good', es: 'bueno' },
+  otimo: { pt: 'ótimo', en: 'great', es: 'genial' },
+};
 
 export function getGenderMap(): Record<string, Record<Language, string>> {
-  return {
-    masculino: { pt: 'masculino', en: 'male', es: 'masculino', fr: 'masculin' },
-    feminino: { pt: 'feminino', en: 'female', es: 'femenino', fr: 'féminin' },
-    forte: { pt: 'forte', en: 'strong', es: 'fuerte', fr: 'fort' },
-    rapido: { pt: 'rápido', en: 'fast', es: 'rápido', fr: 'rapide' },
-    alta: { pt: 'alta', en: 'high', es: 'alta', fr: 'haute' },
-    baixa: { pt: 'baixa', en: 'low', es: 'baja', fr: 'basse' },
-    bom: { pt: 'bom', en: 'good', es: 'bueno', fr: 'bon' },
-    boa: { pt: 'boa', en: 'good', es: 'buena', fr: 'bonne' },
-    otimo: { pt: 'ótimo', en: 'great', es: 'genial', fr: 'excellent' },
-    otima: { pt: 'ótima', en: 'great', es: 'genial', fr: 'excellente' },
-  };
+  return GENDER_MAP;
 }

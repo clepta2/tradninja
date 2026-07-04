@@ -1,3 +1,6 @@
+// src/core/engine.ts
+// Motor de tradução otimizado — regex pré-compilados, patterns pré-computados
+
 import type {
   Language,
   TranslateOptions,
@@ -6,70 +9,55 @@ import type {
   TranslationKey,
 } from './types';
 import { DEFAULT_CONFIG } from './types';
-import { DICTIONARY } from './dictionary';
+import { lookupByKey, lookupByText } from './dictionary';
 import { applyRules } from './rules';
-import { PATTERNS, interpolatePattern } from './patterns';
+import { PATTERNS } from './patterns';
 import * as Cache from './cache';
 import { resolveICU, hasICUMessages } from '../modules/icu';
 
-interface Translator {
-  translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult;
-  translateObject<T extends Record<string, unknown>>(
-    obj: T,
-    target: Language
-  ): Record<string, string>;
-  translateProject(
-    dir: string,
-    options: { source: Language; target: Language; dryRun?: boolean }
-  ): TranslationResult[];
+// ── Regex de interpolação (pré-compilado) ──────────────────
+const INTERPOLATE_REGEX = /\{(\w+)\}/g;
+
+// ── Patterns pré-computados (lowercase calculado uma vez) ──
+const PRECOMPUTED_PATTERNS = Object.entries(PATTERNS).map(([key, pattern]) => ({
+  key,
+  ptLower: pattern.pt.toLowerCase(),
+  ptOriginal: pattern.pt,
+  translations: pattern as Record<string, string>,
+}));
+
+// ── Interpolação reutilizável ──────────────────────────────
+function interpolateParams(text: string, params?: Record<string, string | number>): string {
+  if (!params) return text;
+  return text.replace(INTERPOLATE_REGEX, (_, key) =>
+    params[key] !== undefined ? String(params[key]) : `{${key}}`
+  );
 }
 
-export function createTranslator(
-  config?: Partial<ModuleConfig>
-): Translator {
+interface Translator {
+  translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult;
+  translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string>;
+  translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[];
+}
+
+export function createTranslator(config?: Partial<ModuleConfig>): Translator {
   const cfg: ModuleConfig = { ...DEFAULT_CONFIG, ...config };
 
   if (cfg.cacheEnabled) {
     Cache.configure({ maxSize: cfg.cacheMaxSize, ttlMs: cfg.cacheTtlMs });
   }
 
-  function lookupInDict(
-    text: string,
-    target: Language
-  ): string | null {
-    const entry = DICTIONARY[text];
-    if (!entry) return null;
-    return entry[target] || null;
-  }
-
-  function interpolateParams(
-    text: string,
-    params?: Record<string, string | number>
-  ): string {
-    if (!params) return text;
-    return text.replace(/\{(\w+)\}/g, (_, key) =>
-      params[key] !== undefined ? String(params[key]) : `{${key}}`
-    );
-  }
-
-  function tryPattern(
-    text: string,
-    target: Language
-  ): string | null {
+  function tryPattern(text: string, target: Language): string | null {
     const normalized = text.trim().toLowerCase();
-    for (const [key, pattern] of Object.entries(PATTERNS)) {
-      const ptLower = pattern.pt.toLowerCase();
-      if (normalized === ptLower || text === pattern.pt) {
-        return pattern[target];
+    for (const pattern of PRECOMPUTED_PATTERNS) {
+      if (normalized === pattern.ptLower || text === pattern.ptOriginal) {
+        return pattern.translations[target];
       }
     }
     return null;
   }
 
-  function translate(
-    text: TranslationKey,
-    options?: Partial<TranslateOptions>
-  ): TranslationResult {
+  function translate(text: TranslationKey, options?: Partial<TranslateOptions>): TranslationResult {
     const source = options?.source || cfg.defaultSource;
     const target = options?.target || cfg.defaultTarget;
     const params = options?.params;
@@ -80,8 +68,7 @@ export function createTranslator(
     }
 
     if (source === target) {
-      const result = interpolateParams(resolved, params);
-      return { text: result, source, target, fromCache: false, matched: true };
+      return { text: interpolateParams(resolved, params), source, target, fromCache: false, matched: true };
     }
 
     const ok = (t: string, fromCache: boolean): TranslationResult =>
@@ -92,10 +79,18 @@ export function createTranslator(
       if (cached) return ok(cached, true);
     }
 
-    const dictResult = lookupInDict(text, target);
-    if (dictResult) {
-      if (cfg.cacheEnabled) Cache.set(source, target, text, dictResult);
-      return ok(dictResult, false);
+    // Lookup por texto (O(1) com Map)
+    const dictByText = lookupByText(text, target);
+    if (dictByText) {
+      if (cfg.cacheEnabled) Cache.set(source, target, text, dictByText);
+      return ok(dictByText, false);
+    }
+
+    // Lookup por chave (O(1))
+    const dictByKey = lookupByKey(text, target);
+    if (dictByKey) {
+      if (cfg.cacheEnabled) Cache.set(source, target, text, dictByKey);
+      return ok(dictByKey, false);
     }
 
     const patternResult = tryPattern(text, target);
@@ -117,25 +112,15 @@ export function createTranslator(
     return { text: interpolateParams(text, params), source, target, fromCache: false, matched: false };
   }
 
-  function translateObject<T extends Record<string, unknown>>(
-    obj: T,
-    target: Language
-  ): Record<string, string> {
+  function translateObject<T extends Record<string, unknown>>(obj: T, target: Language): Record<string, string> {
     const result: Record<string, string> = {};
     for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'string') {
-        result[key] = translate(value, { target }).text;
-      } else {
-        result[key] = String(value);
-      }
+      result[key] = typeof value === 'string' ? translate(value, { target }).text : String(value);
     }
     return result;
   }
 
-  function translateProject(
-    dir: string,
-    options: { source: Language; target: Language; dryRun?: boolean }
-  ): TranslationResult[] {
+  function translateProject(dir: string, options: { source: Language; target: Language; dryRun?: boolean }): TranslationResult[] {
     const results: TranslationResult[] = [];
     const fs = require('fs');
     const path = require('path');
