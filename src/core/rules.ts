@@ -1,9 +1,9 @@
 // src/core/rules.ts
-// Regras gramaticais com regex pré-compilados — PT→EN/ES/FR/DE
+// Regras gramaticais PT → EN/ES/FR/DE — artigos, possessivos, negação, gênero, número
 
-import type { GrammarRule, Language } from './types';
+import type { Language } from './types';
 
-// ── Artigos PT → EN/ES/FR/DE ──────────────────────────────
+// ── Artigos PT→EN/ES/FR/DE ──────────────────────────────
 const ARTICLES = [
   { pt: /\bo\b/gi, en: 'the', es: 'el', fr: 'le', de: 'der' },
   { pt: /\ba\b/gi, en: 'the', es: 'la', fr: 'la', de: 'die' },
@@ -32,80 +32,92 @@ const NEGATION: Record<string, Record<string, string>> = {
   nem: { en: 'neither', es: 'ni', fr: 'ni', de: 'weder' },
 };
 
-// ── RegExp pré-compilados (uma vez no init) ─────────────────
-function buildRules(map: Record<string, Record<string, string>>, targets: Language[]) {
+// ── Adjetivos (gênero/número) ─────────────────────────────
+const ADJECTIVES: Record<string, { m: Record<string, string>; f: Record<string, string>; mp: Record<string, string>; fp: Record<string, string> }> = {
+  bom:   { m: { en:'good', es:'bueno', fr:'bon', de:'gut' }, f: { en:'good', es:'buena', fr:'bonne', de:'gut' }, mp: { en:'good', es:'buenos', fr:'bons', de:'gute' }, fp: { en:'good', es:'buenas', fr:'bonnes', de:'gute' } },
+  mau:   { m: { en:'bad', es:'malo', fr:'mauvais', de:'schlecht' }, f: { en:'bad', es:'mala', fr:'mauvaise', de:'schlecht' }, mp: { en:'bad', es:'malos', fr:'mauvais', de:'schlechte' }, fp: { en:'bad', es:'malas', fr:'mauvaises', de:'schlechte' } },
+  grande:{ m: { en:'big', es:'grande', fr:'grand', de:'groß' }, f: { en:'big', es:'grande', fr:'grande', de:'groß' }, mp: { en:'big', es:'grandes', fr:'grands', de:'große' }, fp: { en:'big', es:'grandes', fr:'grandes', de:'große' } },
+  pequeno:{ m: { en:'small', es:'pequeño', fr:'petit', de:'klein' }, f: { en:'small', es:'pequeña', fr:'petite', de:'kleine' }, mp: { en:'small', es:'pequeños', fr:'petits', de:'kleine' }, fp: { en:'small', es:'pequeñas', fr:'petites', de:'kleine' } },
+  forte: { m: { en:'strong', es:'fuerte', fr:'fort', de:'stark' }, f: { en:'strong', es:'fuerte', fr:'forte', de:'stark' }, mp: { en:'strong', es:'fuertes', fr:'forts', de:'starke' }, fp: { en:'strong', es:'fuertes', fr:'fortes', de:'starke' } },
+  rápido:{ m: { en:'fast', es:'rápido', fr:'rapide', de:'schnell' }, f: { en:'fast', es:'rápida', fr:'rapide', de:'schnell' }, mp: { en:'fast', es:'rápidos', fr:'rapides', de:'schnelle' }, fp: { en:'fast', es:'rápidas', fr:'rapides', de:'schnelle' } },
+  novo:  { m: { en:'new', es:'nuevo', fr:'nouveau', de:'neu' }, f: { en:'new', es:'nueva', fr:'nouvelle', de:'neue' }, mp: { en:'new', es:'nuevos', fr:'nouveaux', de:'neue' }, fp: { en:'new', es:'nuevas', fr:'nouvelles', de:'neue' } },
+  bom:   { m: { en:'good', es:'bueno', fr:'bon', de:'gut' }, f: { en:'good', es:'buena', fr:'bonne', de:'gut' }, mp: { en:'good', es:'buenos', fr:'bons', de:'gute' }, fp: { en:'good', es:'buenas', fr:'bonnes', de:'gute' } },
+};
+
+// ── Preposições PT→target ──────────────────────────────────
+const PREPOSITIONS: Record<string, Record<string, string>> = {
+  de: { en: 'of', es: 'de', fr: 'de', de: 'von' },
+  em: { en: 'in', es: 'en', fr: 'dans', de: 'in' },
+  para: { en: 'for', es: 'para', fr: 'pour', de: 'für' },
+  com: { en: 'with', es: 'con', fr: 'avec', de: 'mit' },
+  sem: { en: 'without', es: 'sin', fr: 'sans', de: 'ohne' },
+  por: { en: 'by', es: 'por', fr: 'par', de: 'von' },
+  sobre: { en: 'about', es: 'sobre', fr: 'sur', de: 'über' },
+  entre: { en: 'between', es: 'entre', fr: 'entre', de: 'zwischen' },
+  até: { en: 'until', es: 'hasta', fr: "jusqu'à", de: 'bis' },
+  desde: { en: 'from', es: 'desde', fr: 'depuis', de: 'von' },
+  contra: { en: 'against', es: 'contra', fr: 'contre', de: 'gegen' },
+  sob: { en: 'under', es: 'bajo', fr: 'sous', de: 'unter' },
+  após: { en: 'after', es: 'después', fr: 'après', de: 'nach' },
+  perante: { en: 'before', es: 'antes', fr: 'avant', de: 'vor' },
+};
+
+// ── Construção dos arrays de regras ────────────────────────
+const ALL_TARGETS: Language[] = ['en', 'es', 'fr', 'de'];
+
+function buildRegex(map: Record<string, Record<string, string>>): { regex: RegExp; replacement: string; target: Language }[] {
   const rules: { regex: RegExp; replacement: string; target: Language }[] = [];
-  for (const [pt, translations] of Object.entries(map)) {
-    for (const target of targets) {
-      if (translations[target]) {
-        rules.push({ regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: translations[target], target });
-      }
+  for (const [pt, trans] of Object.entries(map)) {
+    for (const target of ALL_TARGETS) {
+      if (trans[target]) rules.push({ regex: new RegExp(`\\b${pt}\\b`, 'gi'), replacement: trans[target], target });
     }
   }
   return rules;
 }
 
-const ALL_TARGETS: Language[] = ['en', 'es', 'fr', 'de'];
-const POSSESSIVE_RULES = buildRules(POSSESSIVES, ALL_TARGETS);
-const NEGATION_RULES = buildRules(NEGATION, ALL_TARGETS);
+const ARTICLE_RULES = ARTICLES.flatMap(a =>
+  ALL_TARGETS.map(target => ({ regex: a.pt, replacement: a[target as keyof typeof a] as string, target }))
+).filter(r => r.replacement);
 
-// ── Regras de artigo (exportadas) ───────────────────────────
-export const GRAMMAR_RULES: GrammarRule[] = ARTICLES.flatMap((a) =>
-  ALL_TARGETS.map((target) => ({
-    id: `article-${target}-${a.pt.source}`,
-    source: 'pt' as Language,
-    target,
-    match: a.pt,
-    replace: () => a[target as keyof typeof a],
-    description: `PT article → ${target}`,
-  }))
-);
+const POSSESSIVE_RULES = buildRegex(POSSESSIVES);
+const NEGATION_RULES = buildRegex(NEGATION);
+const PREPOSITION_RULES = buildRegex(PREPOSITIONS);
 
-// ── Aplicação de regras ────────────────────────────────────
+// ── Regras exportadas ──────────────────────────────────────
+export const GRAMMAR_RULES = [...ARTICLE_RULES, ...POSSESSIVE_RULES, ...NEGATION_RULES];
+
 export function applyRules(text: string, source: Language, target: Language): string {
   if (source !== 'pt') return text;
   if (!ALL_TARGETS.includes(target)) return text;
-
   let r = text;
-  for (const rule of POSSESSIVE_RULES) {
-    if (rule.target === target) r = r.replace(rule.regex, rule.replacement);
-  }
-  for (const rule of NEGATION_RULES) {
-    if (rule.target === target) r = r.replace(rule.regex, rule.replacement);
-  }
+  for (const rule of ARTICLE_RULES) { if (rule.target === target) r = r.replace(rule.regex, rule.replacement); }
+  for (const rule of POSSESSIVE_RULES) { if (rule.target === target) r = r.replace(rule.regex, rule.replacement); }
+  for (const rule of NEGATION_RULES) { if (rule.target === target) r = r.replace(rule.regex, rule.replacement); }
+  for (const rule of PREPOSITION_RULES) { if (rule.target === target) r = r.replace(rule.regex, rule.replacement); }
   return r;
 }
 
-// ── Formatação de números ──────────────────────────────────
-const NUMBER_FORMATS: Record<string, { decimal: string; thousands: string; currency: string }> = {
-  pt: { decimal: ',', thousands: '.', currency: 'R$ ' },
-  en: { decimal: '.', thousands: ',', currency: '$' },
-  es: { decimal: ',', thousands: '.', currency: '$' },
-  fr: { decimal: ',', thousands: ' ', currency: '€' },
-  de: { decimal: ',', thousands: '.', currency: '€' },
-};
-
 export function formatNumber(value: number, target: Language, decimals = 0): string {
-  const fmt = NUMBER_FORMATS[target];
+  const fmts: Record<string, { d: string; t: string }> = {
+    pt: { d: ',', t: '.' }, en: { d: '.', t: ',' }, es: { d: ',', t: '.' },
+    fr: { d: ',', t: ' ' }, de: { d: ',', t: '.' },
+  };
+  const fmt = fmts[target];
   if (!fmt) return value.toFixed(decimals);
   const parts = value.toFixed(decimals).split('.');
-  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, fmt.thousands);
-  return parts[1] ? intPart + fmt.decimal + parts[1] : intPart;
+  return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, fmt.t) + (parts[1] ? fmt.d + parts[1] : '');
 }
 
 export function formatCurrency(value: number, target: Language, decimals = 2): string {
-  const fmt = NUMBER_FORMATS[target];
-  if (!fmt) return value.toFixed(decimals);
-  return fmt.currency + formatNumber(value, target, decimals);
+  const sym: Record<string, string> = { pt: 'R$ ', en: '$', es: '$', fr: '€', de: '€' };
+  return (sym[target] || '') + formatNumber(value, target, decimals);
 }
 
-// ── Mapa de gêneros (memoizado) ────────────────────────────
-const GENDER_MAP: Record<string, Record<string, string>> = {
-  masculino: { pt: 'masculino', en: 'male', es: 'masculino', fr: 'masculin', de: 'männlich' },
-  feminino: { pt: 'feminino', en: 'female', es: 'femenino', fr: 'féminin', de: 'weiblich' },
-  forte: { pt: 'forte', en: 'strong', es: 'fuerte', fr: 'fort', de: 'stark' },
-  bom: { pt: 'bom', en: 'good', es: 'bueno', fr: 'bon', de: 'gut' },
-  otimo: { pt: 'ótimo', en: 'great', es: 'genial', fr: 'génial', de: 'großartig' },
-};
+export function getAdjective(adjective: string, gender: 'm' | 'f', number: 's' | 'p', target: Language): string | null {
+  const adj = ADJECTIVES[adjective];
+  if (!adj) return null;
+  const form = gender === 'm' ? (number === 'p' ? adj.mp : adj.m) : (number === 'p' ? adj.fp : adj.f);
+  return form[target] || null;
+}
 
-export function getGenderMap() { return GENDER_MAP; }
+export function getGenderMap() { return ADJECTIVES; }
