@@ -1,17 +1,15 @@
 // src/core/dictionary.ts
-// Dicionário TradNinja — lazy loading, índices, batching
+// Dicionário TradNinja — lazy loading, índices, batching, helpers
 
 import ptData from '../i18n/pt.json';
 import type { Language } from './types';
 
 type LangMap = Record<string, string>;
 
-// ── Cache de idiomas carregados ─────────────────────────────
 const LOADED_LANGUAGES = new Map<string, LangMap>();
 const DICTIONARY = new Map<string, { pt: string; en?: string; es?: string }>();
 const LOOKUP_BY_TEXT = new Map<string, { pt: string; en?: string; es?: string }>();
 
-// ── Lazy load de idioma ─────────────────────────────────────
 async function loadLanguage(lang: string): Promise<LangMap> {
   if (LOADED_LANGUAGES.has(lang)) return LOADED_LANGUAGES.get(lang)!;
 
@@ -19,6 +17,7 @@ async function loadLanguage(lang: string): Promise<LangMap> {
   try {
     data = await import(`../i18n/${lang}.json`);
   } catch {
+    console.warn(`[TradNinja] Idioma '${lang}' não encontrado. Use: pt, en, es`);
     return {};
   }
 
@@ -27,7 +26,6 @@ async function loadLanguage(lang: string): Promise<LangMap> {
   return flat;
 }
 
-// ── Flatten JSON recursivo ──────────────────────────────────
 function flattenJson(obj: Record<string, unknown>, prefix = ''): LangMap {
   const result: LangMap = {};
   for (const [key, val] of Object.entries(obj)) {
@@ -41,7 +39,6 @@ function flattenJson(obj: Record<string, unknown>, prefix = ''): LangMap {
   return result;
 }
 
-// ── Build dictionary (lazy init) ───────────────────────────
 let built = false;
 
 async function buildDictionary(target: Language): Promise<void> {
@@ -78,9 +75,7 @@ async function buildDictionary(target: Language): Promise<void> {
 
 /**
  * Busca tradução por texto exato (O(1)).
- * @param text - Texto PT para buscar
- * @param target - Idioma destino
- * @returns Texto traduzido ou null
+ * @example lookupByText('Salvar', 'en') → 'Save'
  */
 export function lookupByText(text: string, target: Language): string | null {
   buildDictionary(target);
@@ -90,9 +85,7 @@ export function lookupByText(text: string, target: Language): string | null {
 
 /**
  * Busca tradução por chave (O(1)).
- * @param key - Chave do dicionário
- * @param target - Idioma destino
- * @returns Texto traduzido ou null
+ * @example lookupByKey('common.save', 'en') → 'Save'
  */
 export function lookupByKey(key: string, target: Language): string | null {
   buildDictionary(target);
@@ -100,7 +93,6 @@ export function lookupByKey(key: string, target: Language): string | null {
   return entry ? entry[target] || null : null;
 }
 
-// ── Batch translate ─────────────────────────────────────────
 const TRANSLATION_BUFFER: Array<{
   text: string;
   target: Language;
@@ -143,6 +135,24 @@ function processBuffer(): void {
     const entry = LOOKUP_BY_TEXT.get(item.text);
     item.resolve(entry ? entry[item.target] || item.text : item.text);
   }
+}
+
+/**
+ * Verifica se uma tradução existe no dicionário.
+ */
+export function hasTranslation(text: string, target: Language): boolean {
+  buildDictionary(target);
+  return LOOKUP_BY_TEXT.has(text);
+}
+
+/**
+ * Retorna todas as traduções disponíveis para um texto.
+ */
+export function getTranslations(text: string, target: Language): Record<string, string> | null {
+  buildDictionary(target);
+  const entry = LOOKUP_BY_TEXT.get(text);
+  if (!entry) return null;
+  return { pt: entry.pt, en: entry.en || '', es: entry.es || '' };
 }
 
 /**
