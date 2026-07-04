@@ -18,4 +18,6 @@ export {
 } from './dictionary';
 export { GRAMMAR_RULES, applyRules, formatNumber, formatCurrency, getGenderMap } from './rules';
 export { PATTERNS, interpolatePattern, getPattern } from './patterns';
+export { conjugate, detectConjugation, getAvailableVerbs } from './conjugation';
+export { translateSentence, detectLanguage, tokenize } from './sentencer';
 export { createTranslator } from './engine';
