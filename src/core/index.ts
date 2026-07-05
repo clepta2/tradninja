@@ -21,5 +21,6 @@ export { PATTERNS, interpolatePattern, getPattern } from './patterns';
 export { conjugate, detectConjugation, getAvailableVerbs, getVerbCount } from './conjugation';
 export { translateSentence, detectLanguage, tokenize } from './sentencer';
 export { getPhrase, getPhrases, getCategories } from './phrasebook';
-export { getAdjective } from './rules';
+export { applyReorder } from './reorder';
+export { translate, translateAsync, translateBatch as pipelineBatch, getSupportedLanguages } from './pipeline';
 export { createTranslator } from './engine';
