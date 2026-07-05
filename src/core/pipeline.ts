@@ -31,7 +31,12 @@ export function translate(
     return { text, source, target, confidence: 1, stage: 'identity' };
   }
 
-  // 0.5. Busca multi-palavra no phrasebook (frases comuns)
+  // 0.5. Se é número/porcentagem, passa direto (não traduzir)
+  if (/^[\d.,]+%?$/.test(text.trim()) || /^\d+[.,]\d+$/.test(text.trim())) {
+    return { text, source, target, confidence: 1, stage: 'number' };
+  }
+
+  // 0.6. Busca multi-palavra no phrasebook (frases comuns)
   const phraseHit = lookupPhrase(text.trim(), target);
   if (phraseHit) {
     return { text: phraseHit, source, target, confidence: 1, stage: 'phrasebook' };

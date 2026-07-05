@@ -40,6 +40,9 @@ function translate(text) {
     const lower = w.toLowerCase().replace(/[.,!?;:]/g, '');
     const punct = w.slice(-1).match(/[.,!?;:]/) ? w.slice(-1) : '';
     
+    // 0. Números/porcentagens passam direto
+    if (/^\d+[.,]?\d*%?$/.test(lower)) return lower + punct;
+    
     // 1. Frase completa
     const phrase = PHRASES[lower];
     if (phrase) return phrase + punct;
