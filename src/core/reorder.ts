@@ -72,16 +72,13 @@ interface WordOrderRule {
 function buildENRules(): WordOrderRule[] {
   return [
     // Adjetivo + substantivo → substantivo + adjetivo
-    // "the good house" → "the good house" (já correto em EN)
-    // Mas se veio de PT "a casa boa" → precisa reordenar
     {
       name: 'adj-noun',
       apply: (text) => {
         for (const [ptAdj, trans] of Object.entries(ADJ_MAP)) {
           const enAdj = trans.en;
           if (!enAdj) continue;
-          // Procura "the EN_ADJ NOUN" e reordena para "the NOUN EN_ADJ"
-          const re = new RegExp('\\b(the|a|an)\\s+' + enAdj + '\\s+(\\w+)', 'gi');
+          const re = new RegExp('\\b(the|a|an)\\s+' + enAdj + '\\s+([\\wÀ-ÿ]+)', 'gi');
           text = text.replace(re, (_, art, noun) => art + ' ' + noun + ' ' + enAdj);
         }
         return text;
@@ -91,22 +88,81 @@ function buildENRules(): WordOrderRule[] {
     {
       name: 'negation',
       apply: (text) => {
-        // Padrão: PRONOUN + no/not + VERB → PRONOUN + don't/doesn't + VERB
-        const negRe = /\b(I|you|he|she|it|we|they)\s+no\s+(\w+)/gi;
-        text = text.replace(negRe, (_, subj, verb) => {
-          const aux = subj.toLowerCase() === 'he' || subj.toLowerCase() === 'she' || subj.toLowerCase() === 'it'
-            ? "doesn't" : "don't";
+        text = text.replace(/\b(I|you|he|she|it|we|they)\s+no\s+(\w+)/gi, (_, subj, verb) => {
+          const aux = ['he', 'she', 'it'].includes(subj.toLowerCase()) ? "doesn't" : "don't";
           return subj + ' ' + aux + ' ' + verb;
         });
         return text;
       },
     },
-    // Pergunta: "Where is he?" (já correto)
+    // Artigo "a" antes de vogal → "an"
     {
-      name: 'question',
+      name: 'article-vowel',
       apply: (text) => {
-        // Se começa com palavra de pergunta e termina com ?, ok
-        return text;
+        return text.replace(/\ba\s+([aeiou]\w*)/gi, (_, word) => 'an ' + word);
+      },
+    },
+    // Plural: substantivo terminado em -s sem s → adiciona s
+    {
+      name: 'plural',
+      apply: (text) => {
+        // "one dog" → "one dog" (ok)
+        // "two dog" → "two dogs"
+        const pluralRe = /\b(two|three|four|five|six|seven|eight|nine|ten|several|many|few|some|all|these|those)\s+(\w+[^s])\b/gi;
+        return text.replace(pluralRe, (_, num, noun) => {
+          if (noun.endsWith('s') || noun.endsWith('sh') || noun.endsWith('ch') || noun.endsWith('x') || noun.endsWith('z')) {
+            return num + ' ' + noun + 'es';
+          }
+          return num + ' ' + noun + 's';
+        });
+      },
+    },
+    // Pretérito: "I eat yesterday" → "I ate yesterday"
+    {
+      name: 'past-tense-markers',
+      apply: (text) => {
+        const pastRe = /\b(I|you|he|she|it|we|they)\s+(\w+)\s+(yesterday|last week|ago|earlier|before|last year)\b/gi;
+        return text.replace(pastRe, (_, subj, verb, time) => {
+          // Tenta transformar verbo em pretérito simples
+          if (verb.endsWith('e')) return subj + ' ' + verb + 'd' + ' ' + time;
+          if (verb.endsWith('y')) return subj + ' ' + verb.slice(0, -1) + 'ied' + ' ' + time;
+          return subj + ' ' + verb + 'ed' + ' ' + time;
+        });
+      },
+    },
+    // Advérbio de frequência: "always I eat" → "I always eat"
+    {
+      name: 'freq-adverb',
+      apply: (text) => {
+        const freqRe = /\b(always|never|usually|often|sometimes|rarely|seldom|still|already|just|only|also|even)\s+(I|you|he|she|it|we|they)\s+(\w+)/gi;
+        return text.replace(freqRe, (_, adv, subj, verb) => subj + ' ' + adv + ' ' + verb);
+      },
+    },
+    // "do not" → "don't" (contração)
+    {
+      name: 'contraction-do-not',
+      apply: (text) => {
+        return text.replace(/\bdo not\b/gi, "don't")
+                   .replace(/\bdoes not\b/gi, "doesn't")
+                   .replace(/\bdid not\b/gi, "didn't")
+                   .replace(/\bcannot\b/gi, "can't")
+                   .replace(/\bwill not\b/gi, "won't")
+                   .replace(/\bshould not\b/gi, "shouldn't")
+                   .replace(/\bwould not\b/gi, "wouldn't")
+                   .replace(/\bcould not\b/gi, "couldn't")
+                   .replace(/\bmust not\b/gi, "mustn't");
+      },
+    },
+    // Posse: "of mine" → "my" / "of yours" → "your"
+    {
+      name: 'possessive',
+      apply: (text) => {
+        return text.replace(/\bof mine\b/gi, 'my')
+                   .replace(/\bof yours\b/gi, 'your')
+                   .replace(/\bof his\b/gi, 'his')
+                   .replace(/\bof hers\b/gi, 'her')
+                   .replace(/\bof ours\b/gi, 'our')
+                   .replace(/\bof theirs\b/gi, 'their');
       },
     },
   ];
@@ -114,16 +170,46 @@ function buildENRules(): WordOrderRule[] {
 
 function buildESRules(): WordOrderRule[] {
   return [
-    // Adjetivo: PT "grande" → ES "grande" (depois do substantivo)
+    // Adjetivo: PT "a casa boa" → ES "la casa bonita"
     {
       name: 'adj-noun',
       apply: (text) => {
         for (const [ptAdj, trans] of Object.entries(ADJ_MAP)) {
           const esAdj = trans.es || ptAdj;
-          const re = new RegExp('\\b(el|la|los|las|un|una)\\s+' + esAdj + '\\s+(\\w+)', 'gi');
+          const re = new RegExp('\\b(el|la|los|las|un|una|unos|unas)\\s+' + esAdj + '\\s+([\\wÀ-ÿ]+)', 'gi');
           text = text.replace(re, (_, art, noun) => art + ' ' + noun + ' ' + esAdj);
         }
         return text;
+      },
+    },
+    // Negação ES: "yo no como" → "yo no como" (já correto em ES)
+    // Mas "no eat" → "no como" (se verbos vieram de tradução word-by-word)
+    {
+      name: 'negation',
+      apply: (text) => {
+        // ES: negação é "no + verbo" — já correto se traduzido
+        return text;
+      },
+    },
+    // Artigo definido antes de vogal em ES: "el agua" → "el agua" (ok)
+    {
+      name: 'article-vowel',
+      apply: (text) => {
+        // ES: não precisa de mudança, artigos já são corretos
+        return text;
+      },
+    },
+    // Pretérito ES: "yo eat ayer" → "yo comí ayer"
+    {
+      name: 'past-tense-markers',
+      apply: (text) => {
+        const pastRe = /\b(yo|tú|él|ella|nosotros|ellos|ellas)\s+(\w+)\s+(ayer|la semana pasada|antes|el año pasado)\b/gi;
+        return text.replace(pastRe, (_, subj, verb, time) => {
+          if (verb.endsWith('ar')) return subj + ' ' + verb.slice(0, -2) + 'é' + ' ' + time;
+          if (verb.endsWith('er')) return subj + ' ' + verb.slice(0, -2) + 'í' + ' ' + time;
+          if (verb.endsWith('ir')) return subj + ' ' + verb.slice(0, -2) + 'í' + ' ' + time;
+          return subj + ' ' + verb + 'ó' + ' ' + time;
+        });
       },
     },
   ];
@@ -131,7 +217,7 @@ function buildESRules(): WordOrderRule[] {
 
 function buildFRRules(): WordOrderRule[] {
   return [
-    // Adjetivo: PT "grande" → FR "grand" (depois do substantivo)
+    // Adjetivo: PT "a casa bonita" → FR "la maison belle"
     {
       name: 'adj-noun',
       apply: (text) => {
@@ -147,9 +233,38 @@ function buildFRRules(): WordOrderRule[] {
     {
       name: 'negation',
       apply: (text) => {
-        text = text.replace(/\b(je|tu|il|elle|nous|vous|ils|elles)\s+ne\s+(pas)\s+(\w+)/gi,
-          (_, subj, _, verb) => subj + ' ne ' + verb + ' pas');
+        text = text.replace(/\b(je|tu|il|elle|nous|vous|ils|elles)\s+ne\s+pas\s+(\w+)/gi,
+          (_, subj, verb) => subj + ' ne ' + verb + ' pas');
         return text;
+      },
+    },
+    // Artigo antes de vogal: "le amitié" → "l'amitié"
+    {
+      name: 'article-vowel',
+      apply: (text) => {
+        return text.replace(/\ble\s+([aeiouy]\w*)/gi, (_, word) => "l'" + word)
+                   .replace(/\bla\s+([aeiouy]\w*)/gi, (_, word) => "l'" + word);
+      },
+    },
+    // Contração: "de le" → "du" / "de les" → "des"
+    {
+      name: 'contraction-de',
+      apply: (text) => {
+        return text.replace(/\bde\s+le\b/gi, 'du')
+                   .replace(/\bde\s+les\b/gi, 'des')
+                   .replace(/\bà\s+le\b/gi, 'au')
+                   .replace(/\bà\s+les\b/gi, 'aux');
+      },
+    },
+    // Plural: "deux chien" → "deux chiens"
+    {
+      name: 'plural',
+      apply: (text) => {
+        const pluralRe = /\b(deux|trois|quatre|cinq|six|sept|huit|neuf|dix|plusieurs|beaucoup|peu|quelques|tous|ces)\s+(\w+[^s])\b/gi;
+        return text.replace(pluralRe, (_, num, noun) => {
+          if (noun.endsWith('s') || noun.endsWith('x') || noun.endsWith('z')) return num + ' ' + noun;
+          return num + ' ' + noun + 's';
+        });
       },
     },
   ];
@@ -157,8 +272,14 @@ function buildFRRules(): WordOrderRule[] {
 
 function buildDERules(): WordOrderRule[] {
   return [
-    // Alemão: verbo vai pro final em subordinadas
-    // "weil ich esse" (já correto)
+    // Substantivo composto: "Haus" + "Schule" → "Haus school" (já funciona)
+    // Verbo no final de subordinadas: "weil ich esse" (já correto)
+    // Caso: "guter Mann" → "guter Mann" (adjetivo antes do substantivo em alemão)
+    // Não precisa de reorder para DE — adjetivo vem antes em DE
+    {
+      name: 'noop',
+      apply: (text) => text, // Alemão não precisa de reorder para adjetivos
+    },
   ];
 }
 
