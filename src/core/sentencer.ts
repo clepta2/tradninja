@@ -20,12 +20,13 @@ interface Token { text: string; type: 'word' | 'punctuation' | 'number' | 'space
 
 export function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
-  const re = /([A-Za-zÀ-ÿ]+|\d+|[^\s]|\s+)/g;
+  // Regex: palavras OU números (com vírgula decimal e %) OU pontuação OU espaços
+  const re = /([A-Za-zÀ-ÿ]+|\d+(?:[.,]\d+)?%?(?:°[CFc]|mm|km\/h)?|\d+-\d+|[^\s]|\s+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const raw = m[0];
     if (/^\s+$/.test(raw)) tokens.push({ text: raw, type: 'space' });
-    else if (/^\d+$/.test(raw)) tokens.push({ text: raw, type: 'number' });
+    else if (/^\d/.test(raw)) tokens.push({ text: raw, type: 'number' });
     else if (/^[A-Za-zÀ-ÿ]+$/.test(raw)) tokens.push({ text: raw, type: 'word' });
     else tokens.push({ text: raw, type: 'punctuation' });
   }
