@@ -9,7 +9,7 @@ import { applyRules } from './rules';
 import { applyReorder } from './reorder';
 import { translateSentence, detectLanguage } from './sentencer';
 import { getPhrase, getPhrases } from './phrasebook';
-import { lookupPhrase, PHRASE_OVERRIDES } from './clean-dict';
+import { lookupPhrase, CLEAN_OVERRIDES } from './clean-dict';
 
 // ── Resultado do pipeline ──────────────────────────────────
 export interface PipelineResult {
