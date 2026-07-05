@@ -9,6 +9,7 @@ import { applyRules } from './rules';
 import { applyReorder } from './reorder';
 import { translateSentence, detectLanguage } from './sentencer';
 import { getPhrase, getPhrases } from './phrasebook';
+import { lookupPhrase, PHRASE_OVERRIDES } from './clean-dict';
 
 // ── Resultado do pipeline ──────────────────────────────────
 export interface PipelineResult {
@@ -28,6 +29,12 @@ export function translate(
   // 0. Se source === target, retorna original
   if (source === target) {
     return { text, source, target, confidence: 1, stage: 'identity' };
+  }
+
+  // 0.5. Busca multi-palavra no phrasebook (frases comuns)
+  const phraseHit = lookupPhrase(text.trim(), target);
+  if (phraseHit) {
+    return { text: phraseHit, source, target, confidence: 1, stage: 'phrasebook' };
   }
 
   // 1. Busca direta no reverse index (25k termos × 29 idiomas)
