@@ -5,6 +5,7 @@
 import ptData from '../i18n/pt.json';
 import type { Language } from './types';
 import { loadLanguageCached, preloadLanguage, preloadLanguages } from './loader';
+import { CLEAN_OVERRIDES } from './clean-dict';
 
 type LangMap = Record<string, string>;
 type Entry = Record<string, string>;
@@ -54,7 +55,13 @@ export async function initDictionary(target: Language): Promise<void> {
     if (!ptVal || !ptVal.trim()) continue;
 
     const entry: Entry = { pt: ptVal };
-    if (targetFlat[key]) entry[target] = targetFlat[key];
+    // Aplica tradução do dicionário ou override limpo
+    const override = CLEAN_OVERRIDES[ptVal];
+    if (override && override[target]) {
+      entry[target] = override[target]!;
+    } else if (targetFlat[key]) {
+      entry[target] = targetFlat[key];
+    }
     DICTIONARY.set(ptVal, entry);
     indexEntry(entry);
   }
